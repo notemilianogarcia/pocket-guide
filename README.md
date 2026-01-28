@@ -104,58 +104,43 @@ pocket-guide/
 └── pyproject.toml           # Package config
 ```
 
-## Milestones
+## Development Roadmap
 
-### Milestone 0: Project Foundation ✅
-Clean repository structure with stable commands, configuration files, and end-to-end pipeline placeholders. Runnable in stubbed form.
+```
+M0: Foundation    M1: Baseline      M2: Contracts     M3: Data Engine   M4-9: Refinement
+✅ Complete      ✅ Complete       ✅ Complete       🔄 In Progress    ⏳ Planned
+        └─────────────────────────────────────────────────────────────────────────────→
+```
 
-### Milestone 1: Baseline Evaluation ✅
-Evaluated open-source student model on travel benchmarks pre-adaptation. Base report establishes reference point for all improvements.
+| Milestone | Status | Goal | Key Deliverables |
+|-----------|--------|------|------------------|
+| **M0** | ✅ | Clean foundation | Repo structure, stable commands, end-to-end pipeline |
+| **M1** | ✅ | Baseline eval | Base model report, reference benchmarks (72 examples) |
+| **M2** | ✅ | Response contracts | Envelope schema (v0), payload schemas (v1), validation engine |
+| **M3** | 🔄 | Synthetic data | Teacher provider, prompt templates, deterministic generation |
+| **M4** | ⏳ | Data quality | Deduplication, balancing, clean splits |
+| **M5** | ⏳ | Model tuning | LoRA/QLoRA fine-tuning, experiment tracking |
+| **M6** | ⏳ | Rigorous eval | Base vs adapted comparison, metrics + examples |
+| **M7** | ⏳ | Iteration | Evidence-driven improvements, retrain & re-eval |
+| **M8** | ⏳ | Deployment | Quantization, offline packaging, resource docs |
+| **M9** | ⏳ | Portfolio | Polish, demo, limitations, safety |
 
-### Milestone 2: Behavioral Contracts ✅
-- Standard envelope schema (v0) + structured output schemas (v1)
-- Validation/parsing engine (strict/lenient modes)
-- Objective contract compliance measurement
+### Current Focus: Milestone 3 — Synthetic Data Engine
 
-### Milestone 3: Synthetic Data Engine 🔄 (In Progress)
+**What:** Building a teacher-driven pipeline to generate high-quality travel instruction examples with proper structure, uncertainty handling, and verification guidance.
 
-**Goal:** Teacher-driven pipeline generating high-quality travel instruction examples with proper structure, uncertainty handling, and verification guidance.
+**Completed:**
+- ✅ Prompt templates (v1) for 4 payload types
+- ✅ Dataset spec (120 examples, 7 categories, 3 difficulty levels)
+- ✅ OpenRouter backend with cost-controlled fallback (2 free → 1 paid)
+- ✅ Rate limiting, exponential backoff, retry logic, error typing
+- ✅ Environment-based API key management (.env + python-dotenv)
+- ✅ 156 tests passing
 
-**Completed (Lessons 3.1-3.2):**
-
-*Data Pipeline:*
-- Versioned prompt templates (4 payload types)
-- Dataset spec (120 examples, 7 categories, 3 difficulty levels)
-- Deterministic prompt planner CLI (`make data`)
-
-*Teacher Provider:*
-- OpenRouter backend with cost-controlled fallback chain (2 free → 1 paid)
-- Rate limiting (15 RPM), exponential backoff, retry logic
-- Environment-based API keys (.env support)
-- Typed error handling (fail-fast vs retry)
-- Full observability (tokens, latency, fallback tracking)
-
-*Features:* Dry-run mode, `fallback_to_paid` flag, 156 tests passing
-
-**Next:** Batch generation CLI (Lesson 3.3), validation, versioning
-
-### Milestone 4: Data Quality & Splits (Planned)
-Deduplication, balancing, rejection filters, leakage prevention. Clean held-out benchmark split.
-
-### Milestone 5: Model Adaptation (Planned)
-LoRA/QLoRA fine-tuning on cleaned synthetic dataset. Experiment tracking and training report.
-
-### Milestone 6: Rigorous Evaluation (Planned)
-Base vs adapted model comparison. Objective metrics + curated qualitative examples.
-
-### Milestone 7: Evidence-Driven Iteration (Planned)
-Targeted fixes based on failure analysis. Retrain and re-evaluate.
-
-### Milestone 8: Deployment Realism (Planned)
-Quantize model, package for local/offline inference. Document resource constraints.
-
-### Milestone 9: Portfolio Finalization (Planned)
-Polish README, demo, results summary, limitations, safety considerations.
+**In Progress:**
+- 🔄 Batch generation CLI (Lesson 3.3)
+- 🔄 Response validation & quality checks
+- 🔄 Dataset versioning
 
 ## Development
 
