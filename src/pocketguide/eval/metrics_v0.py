@@ -325,12 +325,19 @@ def _compute_suite_metrics(records: list[dict]) -> dict:
     if n == 0:
         return {"n": 0}
 
-    # Parse rates
+    # Parse rates (legacy checks)
     strict_json_ok_count = sum(
         1 for r in records if r.get("checks", {}).get("strict_json_ok", False)
     )
     lenient_json_ok_count = sum(
         1 for r in records if r.get("checks", {}).get("lenient_json_ok", False)
+    )
+
+    # Contract validation rates (schema-based)
+    envelope_ok_count = sum(1 for r in records if r.get("contract", {}).get("envelope_ok", False))
+    payload_ok_count = sum(1 for r in records if r.get("contract", {}).get("payload_ok", False))
+    overall_contract_ok_count = sum(
+        1 for r in records if r.get("contract", {}).get("overall_ok", False)
     )
 
     # Required fields (only count records that have required_fields defined)
@@ -386,6 +393,11 @@ def _compute_suite_metrics(records: list[dict]) -> dict:
         "clarifying_questions_rate": clarifying_count / n if n > 0 else 0.0,
     }
 
+    # Contract validation rates
+    metrics["envelope_pass_rate"] = envelope_ok_count / n if n > 0 else 0.0
+    metrics["payload_pass_rate"] = payload_ok_count / n if n > 0 else 0.0
+    metrics["overall_contract_pass_rate"] = overall_contract_ok_count / n if n > 0 else 0.0
+
     # Required fields rate (only if we have records with required fields)
     if records_with_required:
         metrics["required_fields_rate"] = required_fields_ok_count / len(records_with_required)
@@ -428,6 +440,9 @@ def _get_metric_definitions() -> dict:
         "assumptions_marker_rate": "Fraction of outputs containing assumption/uncertainty language",
         "verification_marker_rate": "Fraction of outputs mentioning verification/checking with authoritative sources",
         "clarifying_questions_rate": "Fraction of outputs asking clarifying questions about missing context",
+        "envelope_pass_rate": "Fraction of outputs passing envelope schema validation (v0/response_envelope.schema.json)",
+        "payload_pass_rate": "Fraction of outputs passing payload schema validation (v1/*.payload.schema.json)",
+        "overall_contract_pass_rate": "Fraction of outputs passing full contract: (strict OR lenient) JSON parse AND envelope AND payload schemas",
         "latency_metrics": "Response generation latency in seconds (avg, p50, p90)",
         "throughput_metrics": "Token generation rate in tokens/second (avg, p50)",
     }

@@ -43,10 +43,12 @@ test: ## Run pytest test suite
 	@$(VENV_PYTHON) -m pytest tests/ -v
 	@echo "✓ Tests passed!"
 
-data: ## Placeholder for data preparation (Milestone 1+)
-	@echo "⚠️  Data preparation not yet implemented (Milestone 1+)"
-	@echo "This target will download and prepare datasets in future milestones."
-	@exit 0
+data: ## Generate prompt plan for synthetic dataset
+	@echo "Generating prompt plan from spec..."
+	@$(VENV_PYTHON) -m pocketguide.data_generation.plan_prompts \
+		--spec data/specs/dataset_v1_spec.yaml \
+		--out_dir data/interim
+	@echo "✓ Prompt plan generated!"
 
 train: ## Placeholder for model training (Milestone 2+)
 	@echo "⚠️  Model training not yet implemented (Milestone 2+)"

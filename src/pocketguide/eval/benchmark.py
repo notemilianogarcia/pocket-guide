@@ -21,6 +21,7 @@ from pocketguide.eval.metrics_v0 import (
     lenient_json_extract_and_parse,
     strict_json_parse,
 )
+from pocketguide.eval.parsing import parse_and_validate
 from pocketguide.inference.cli import format_response, generate_stub_response
 from pocketguide.utils.run_id import make_run_id
 
@@ -365,6 +366,117 @@ def write_meta(
     save_json(meta, meta_path)
 
 
+def _build_contract_section(output_text: str) -> dict[str, Any]:
+    """Build contract validation section for output record.
+
+    Runs strict and lenient parsing/validation and returns structured contract results.
+
+    Args:
+        output_text: Model output text to validate
+
+    Returns:
+        Dict with contract validation results including parse/schema booleans and errors
+    """
+    # Try strict parsing first
+    strict_result = parse_and_validate(output_text, strict_json=True)
+
+    # Try lenient if strict fails
+    lenient_result = None
+    if not strict_result.success:
+        lenient_result = parse_and_validate(output_text, strict_json=False)
+
+    # Initialize contract with default values
+    contract = {
+        "strict_json_ok": False,
+        "lenient_json_ok": False,
+        "envelope_ok": False,
+        "payload_ok": False,
+        "overall_ok": False,
+        "payload_type": None,
+        "error": None,
+    }
+
+    # Determine what succeeded based on results and error codes
+    if strict_result.success:
+        # Full success with strict parsing
+        contract["strict_json_ok"] = True
+        contract["lenient_json_ok"] = True  # If strict works, lenient would too
+        contract["envelope_ok"] = True
+        contract["payload_ok"] = True
+        contract["overall_ok"] = True
+        if strict_result.data:
+            contract["payload_type"] = strict_result.data.get("payload_type")
+    else:
+        # Strict failed - check error code to see what level failed
+        if strict_result.error:
+            error = strict_result.error
+
+            if error.code == "JSON_STRICT_PARSE_FAILED":
+                # Strict JSON parse failed
+                contract["strict_json_ok"] = False
+
+                # Check lenient result
+                if lenient_result:
+                    if lenient_result.success:
+                        # Lenient succeeded completely
+                        contract["lenient_json_ok"] = True
+                        contract["envelope_ok"] = True
+                        contract["payload_ok"] = True
+                        contract["overall_ok"] = True
+                        if lenient_result.data:
+                            contract["payload_type"] = lenient_result.data.get("payload_type")
+                    elif lenient_result.error:
+                        # Lenient also had issues - check its error code
+                        len_error = lenient_result.error
+                        if len_error.code == "JSON_LENIENT_PARSE_FAILED":
+                            # Both parse modes failed
+                            contract["lenient_json_ok"] = False
+                            error = len_error  # Use lenient error for reporting
+                        elif len_error.code == "ENVELOPE_SCHEMA_FAILED":
+                            # Lenient parsed but envelope failed
+                            contract["lenient_json_ok"] = True
+                            error = len_error
+                        elif len_error.code == "PAYLOAD_SCHEMA_FAILED":
+                            # Envelope passed but payload failed
+                            contract["lenient_json_ok"] = True
+                            contract["envelope_ok"] = True
+                            if lenient_result.data:
+                                contract["payload_type"] = lenient_result.data.get("payload_type")
+                            error = len_error
+
+            elif error.code == "ENVELOPE_SCHEMA_FAILED":
+                # JSON parsed (strict) but envelope schema failed
+                contract["strict_json_ok"] = True
+                contract["lenient_json_ok"] = True
+
+            elif error.code == "PAYLOAD_SCHEMA_FAILED":
+                # JSON and envelope passed but payload failed
+                contract["strict_json_ok"] = True
+                contract["lenient_json_ok"] = True
+                contract["envelope_ok"] = True
+                if strict_result.data:
+                    contract["payload_type"] = strict_result.data.get("payload_type")
+
+            # Store error details (limit guidance)
+            guidance = error.guidance[:3] if error.guidance else []
+            contract["error"] = {
+                "code": error.code,
+                "error_type": error.error_type,
+                "failed_at": error.failed_at,
+                "message": error.message,
+                "guidance": guidance,
+            }
+
+    # Recalculate overall_ok
+    contract["overall_ok"] = (
+        (contract["strict_json_ok"] or contract["lenient_json_ok"])
+        and contract["envelope_ok"]
+        and contract["payload_ok"]
+    )
+
+    return contract
+
+
 def run_suite_directory(
     config_path: Path | None = None,
     suite_dir: Path | None = None,
@@ -463,7 +575,7 @@ def run_suite_directory(
             response = generate_stub_response(prompt)
             output_text = format_response(response)
 
-            # Compute checks
+            # Compute checks (legacy)
             strict_ok, strict_parsed, _ = strict_json_parse(output_text)
             lenient_ok, lenient_parsed, _ = lenient_json_extract_and_parse(output_text)
 
@@ -477,6 +589,9 @@ def run_suite_directory(
 
             # Uncertainty markers
             uncertainty = detect_uncertainty_markers(output_text)
+
+            # Contract validation (new schema-based validation)
+            contract = _build_contract_section(output_text)
 
             # Build output record
             output_record = {
@@ -496,6 +611,7 @@ def run_suite_directory(
                     "missing_fields": missing_fields,
                     "uncertainty": uncertainty,
                 },
+                "contract": contract,
             }
 
             # Add parsed JSON preview if available (top-level keys only for dicts)
@@ -541,6 +657,19 @@ def run_suite_directory(
             print(
                 f"  Assumptions marker rate: {metrics['overall'].get('assumptions_marker_rate', 0):.1%}"
             )
+            # Contract compliance rates
+            if metrics["overall"].get("envelope_pass_rate") is not None:
+                print(
+                    f"  Envelope schema pass rate: {metrics['overall'].get('envelope_pass_rate', 0):.1%}"
+                )
+            if metrics["overall"].get("payload_pass_rate") is not None:
+                print(
+                    f"  Payload schema pass rate: {metrics['overall'].get('payload_pass_rate', 0):.1%}"
+                )
+            if metrics["overall"].get("overall_contract_pass_rate") is not None:
+                print(
+                    f"  Overall contract pass rate: {metrics['overall'].get('overall_contract_pass_rate', 0):.1%}"
+                )
 
     if verbose:
         print(

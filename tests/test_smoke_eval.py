@@ -341,3 +341,216 @@ def test_run_suite_directory_multiple_suites():
         assert "suite2" in metrics["by_suite"]
         assert metrics["by_suite"]["suite1"]["n"] == 2
         assert metrics["by_suite"]["suite2"]["n"] == 3
+
+
+def test_contract_integration_with_schema_validation():
+    """Test that contract validation is integrated and records schema compliance."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+
+        # Create test suite with prompts that will generate various outputs
+        suite_path = tmpdir_path / "contract_test.jsonl"
+        test_data = [
+            {"id": "valid_all", "prompt": "Generate valid envelope and payload"},
+            {"id": "fenced_json", "prompt": "Generate JSON in markdown fence"},
+            {"id": "invalid_payload", "prompt": "Generate invalid payload"},
+            {"id": "parse_fail", "prompt": "Generate non-JSON output"},
+        ]
+        save_jsonl(test_data, suite_path)
+
+        # Create eval config
+        config_path = tmpdir_path / "eval.yaml"
+        config_data = {
+            "model": {"id": "test-model", "revision": "main"},
+            "seed": 42,
+            "gen": {
+                "max_new_tokens": 256,
+                "do_sample": False,
+                "temperature": 0.0,
+                "top_p": 1.0,
+            },
+            "suites": [{"path": str(suite_path), "name": "contract_test"}],
+            "out_root": str(tmpdir_path / "runs"),
+            "device": "cpu",
+            "dtype": "float32",
+            "save_predictions": True,
+        }
+        with open(config_path, "w") as f:
+            yaml.dump(config_data, f)
+
+            # Mock generate_stub_response to return different envelope+payload dicts
+            from pocketguide.eval import benchmark
+            from pocketguide.inference import cli
+
+            call_count = [0]  # Use list to allow modification in closure
+
+            def mock_generate_stub(prompt: str):
+                """Return different response dicts based on call order."""
+                call_count[0] += 1
+
+                if call_count[0] == 1:  # valid_all - return valid envelope+payload
+                    return {
+                        "summary": "Valid response",
+                        "assumptions": ["Test assumption"],
+                        "uncertainty_notes": "None",
+                        "next_steps": ["Step 1"],
+                        "verification_steps": ["Verify 1"],
+                        "payload_type": "procedure",
+                        "payload": {
+                            "title": "Test Procedure",
+                            "steps": [{"step": 1, "instruction": "Do something"}],
+                        },
+                    }
+                elif call_count[0] == 2:  # fenced_json - will be wrapped in markdown fence
+                    return {
+                        "summary": "Fenced",
+                        "assumptions": [],
+                        "uncertainty_notes": "",
+                        "next_steps": [],
+                        "verification_steps": [],
+                        "payload_type": "checklist",
+                        "payload": {
+                            "title": "List",
+                            "groups": [{"name": "Group", "items": [{"text": "Item"}]}],
+                        },
+                    }
+                elif call_count[0] == 3:  # invalid_payload - missing required field
+                    return {
+                        "summary": "Invalid payload",
+                        "assumptions": [],
+                        "uncertainty_notes": "",
+                        "next_steps": [],
+                        "verification_steps": [],
+                        "payload_type": "procedure",
+                        "payload": {"title": "Missing steps field"},
+                    }
+                else:  # parse_fail - return string that won't be valid JSON
+                    return {"raw_text": "This is not JSON at all, just plain text."}
+
+            # Mock format_response to handle the different response dicts
+            def mock_format(response: dict):
+                """Format responses, including markdown fencing for call 2."""
+                call_num = call_count[0]
+
+                # For call 2, wrap JSON in markdown fence
+                if call_num == 2:
+                    return f"```json\n{json.dumps(response)}\n```"
+                # For call 4, return non-JSON text
+                elif call_num == 4:
+                    return response.get("raw_text", "Plain text output")
+                # Otherwise return JSON
+                else:
+                    return json.dumps(response)
+
+            # Save originals from both modules
+            original_generate_cli = cli.generate_stub_response
+            original_format_cli = cli.format_response
+            original_generate_bm = benchmark.generate_stub_response
+            original_format_bm = benchmark.format_response
+
+            # Apply mocks to both modules
+            cli.generate_stub_response = mock_generate_stub
+            cli.format_response = mock_format
+            benchmark.generate_stub_response = mock_generate_stub
+            benchmark.format_response = mock_format
+
+            try:
+                # Run benchmark using run_suite_directory (which has contract integration)
+                run_suite_directory(
+                    config_path=config_path,
+                    suite_dir=tmpdir_path,  # Directory containing contract_test.jsonl
+                    out_dir=tmpdir_path / "runs",
+                    run_id="20250101_000000",  # Fixed run_id for easier testing
+                    verbose=False,
+                )
+
+                # Check outputs
+                outputs_path = tmpdir_path / "runs" / "20250101_000000" / "base_model_outputs.jsonl"
+                assert outputs_path.exists()
+
+                with open(outputs_path) as f:
+                    outputs = [json.loads(line) for line in f]
+
+                assert len(outputs) == 4
+
+                # Check that each output has contract section
+                for output in outputs:
+                    assert "contract" in output
+                    contract = output["contract"]
+
+                    # Check required contract fields
+                    assert "strict_json_ok" in contract
+                    assert "lenient_json_ok" in contract
+                    assert "envelope_ok" in contract
+                    assert "payload_ok" in contract
+                    assert "overall_ok" in contract
+                    assert "payload_type" in contract
+                    # error may be None or dict
+
+                # Verify specific cases
+                outputs_by_id = {o["id"]: o for o in outputs}
+
+                # Valid case: should pass all checks
+                valid = outputs_by_id["valid_all"]
+                assert valid["contract"]["strict_json_ok"] is True
+                assert valid["contract"]["envelope_ok"] is True
+                assert valid["contract"]["payload_ok"] is True
+                assert valid["contract"]["overall_ok"] is True
+                assert valid["contract"]["payload_type"] == "procedure"
+                assert valid["contract"]["error"] is None
+
+                # Fenced JSON: strict fails, lenient passes
+                fenced = outputs_by_id["fenced_json"]
+                assert fenced["contract"]["strict_json_ok"] is False
+                assert fenced["contract"]["lenient_json_ok"] is True
+                assert fenced["contract"]["envelope_ok"] is True
+                assert fenced["contract"]["payload_ok"] is True
+                assert fenced["contract"]["overall_ok"] is True
+
+                # Invalid payload: envelope passes, payload fails
+                invalid_payload = outputs_by_id["invalid_payload"]
+                assert invalid_payload["contract"]["strict_json_ok"] is True
+                assert invalid_payload["contract"]["envelope_ok"] is True
+                assert invalid_payload["contract"]["payload_ok"] is False
+                assert invalid_payload["contract"]["overall_ok"] is False
+                assert invalid_payload["contract"]["error"] is not None
+                assert invalid_payload["contract"]["error"]["code"] == "PAYLOAD_SCHEMA_FAILED"
+
+                # Parse fail: everything fails
+                parse_fail = outputs_by_id["parse_fail"]
+                assert parse_fail["contract"]["strict_json_ok"] is False
+                assert parse_fail["contract"]["lenient_json_ok"] is False
+                assert parse_fail["contract"]["envelope_ok"] is False
+                assert parse_fail["contract"]["payload_ok"] is False
+                assert parse_fail["contract"]["overall_ok"] is False
+                assert parse_fail["contract"]["error"] is not None
+
+                # Check metrics include contract rates
+                metrics_path = tmpdir_path / "runs" / "20250101_000000" / "metrics.json"
+                assert metrics_path.exists()
+
+                with open(metrics_path) as f:
+                    metrics = json.load(f)
+
+                overall = metrics["overall"]
+                assert "envelope_pass_rate" in overall
+                assert "payload_pass_rate" in overall
+                assert "overall_contract_pass_rate" in overall
+
+                # Should have 2/4 valid (valid_all, fenced_json have envelope pass)
+                # and 2/4 fully valid (valid_all, fenced_json pass all)
+                assert overall["envelope_pass_rate"] == 0.75  # 3/4 (valid, fenced, invalid_payload)
+                assert overall["payload_pass_rate"] == 0.5  # 2/4 (valid, fenced)
+                assert overall["overall_contract_pass_rate"] == 0.5  # 2/4 (valid, fenced)
+
+                # Check definitions include new metrics
+                assert "envelope_pass_rate" in metrics["definitions"]
+                assert "payload_pass_rate" in metrics["definitions"]
+                assert "overall_contract_pass_rate" in metrics["definitions"]
+
+            finally:
+                # Restore originals in both modules
+                cli.generate_stub_response = original_generate_cli
+                cli.format_response = original_format_cli
+                benchmark.generate_stub_response = original_generate_bm
+                benchmark.format_response = original_format_bm
