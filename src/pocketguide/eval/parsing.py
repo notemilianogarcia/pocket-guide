@@ -3,17 +3,33 @@
 import json
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
+from importlib import resources
 from typing import Any
 
 import jsonschema
 
+# Error codes for stable metrics/reporting
+JSON_STRICT_PARSE_FAILED = "JSON_STRICT_PARSE_FAILED"
+JSON_LENIENT_PARSE_FAILED = "JSON_LENIENT_PARSE_FAILED"
+ENVELOPE_SCHEMA_FAILED = "ENVELOPE_SCHEMA_FAILED"
+PAYLOAD_SCHEMA_FAILED = "PAYLOAD_SCHEMA_FAILED"
+
+# Schema cache to avoid repeated file I/O
+_SCHEMA_CACHE: dict[str, dict[str, Any]] = {}
+
+# Maximum candidate JSON length for lenient parsing (200KB)
+_MAX_CANDIDATE_LENGTH = 200_000
+
 
 @dataclass
-class ValidationError:
-    """Structured validation error with guidance."""
+class ParseValidationError:
+    """Structured validation error with guidance.
 
-    error_type: str  # "json_parse", "envelope_schema", "payload_schema", "unknown"
+    Note: Renamed from ValidationError to avoid collision with jsonschema.ValidationError.
+    """
+
+    code: str  # Stable error code for metrics (e.g., JSON_STRICT_PARSE_FAILED)
+    error_type: str  # "json_parse", "envelope_schema", "payload_schema"
     message: str
     failed_at: str | None = None  # e.g., "summary", "payload.items[0].time_block"
     guidance: list[str] = field(default_factory=list)
@@ -21,7 +37,7 @@ class ValidationError:
 
     def __str__(self) -> str:
         """Format error as human-readable string."""
-        lines = [f"[{self.error_type}] {self.message}"]
+        lines = [f"[{self.code}] {self.message}"]
         if self.failed_at:
             lines.append(f"  Location: {self.failed_at}")
         if self.guidance:
@@ -37,7 +53,7 @@ class ParseResult:
 
     success: bool
     data: dict[str, Any] | None = None
-    error: ValidationError | None = None
+    error: ParseValidationError | None = None
 
     def __str__(self) -> str:
         """Format result as string."""
@@ -46,17 +62,32 @@ class ParseResult:
         return f"✗ Parse failed:\n{self.error}"
 
 
-def _get_schema_dir() -> Path:
-    """Get path to schemas directory."""
-    return Path(__file__).parent.parent / "data" / "schemas"
-
-
 def _load_schema(schema_path: str) -> dict[str, Any]:
-    """Load a JSON schema from path."""
-    full_path = _get_schema_dir() / schema_path
-    if not full_path.exists():
-        raise FileNotFoundError(f"Schema not found: {full_path}")
-    return json.loads(full_path.read_text())
+    """
+    Load a JSON schema using importlib.resources.
+
+    Caches schemas to avoid repeated I/O.
+
+    Args:
+        schema_path: Relative path within schemas directory (e.g., "v0/response_envelope.schema.json")
+
+    Returns:
+        Loaded schema as dict
+
+    Raises:
+        FileNotFoundError: If schema file doesn't exist
+    """
+    if schema_path in _SCHEMA_CACHE:
+        return _SCHEMA_CACHE[schema_path]
+
+    try:
+        # Load from package resources
+        schema_text = resources.files("pocketguide.data.schemas").joinpath(schema_path).read_text()
+        schema = json.loads(schema_text)
+        _SCHEMA_CACHE[schema_path] = schema
+        return schema
+    except (FileNotFoundError, AttributeError) as e:
+        raise FileNotFoundError(f"Schema not found: {schema_path}") from e
 
 
 def _parse_json_strict(text: str) -> tuple[bool, dict[str, Any] | None, str | None]:
@@ -81,6 +112,11 @@ def _parse_json_lenient(text: str) -> tuple[bool, dict[str, Any] | None, str | N
     - JSON in plain code fences (``` ... ```)
     - JSON wrapped in prose
 
+    Guardrails:
+    - If a candidate fails json.loads, continues searching for another candidate
+    - Maximum candidate length enforced to avoid pathological inputs
+    - Deterministic left-to-right search
+
     Returns: (success, data, error_message)
     """
     # Try to find JSON in code fences first
@@ -90,13 +126,18 @@ def _parse_json_lenient(text: str) -> tuple[bool, dict[str, Any] | None, str | N
     ]
 
     for pattern in json_fence_patterns:
-        match = re.search(pattern, text, re.DOTALL)
-        if match:
+        for match in re.finditer(pattern, text, re.DOTALL):
             json_str = match.group(1).strip()
+
+            # Apply max candidate length
+            if len(json_str) > _MAX_CANDIDATE_LENGTH:
+                continue
+
             try:
                 data = json.loads(json_str)
                 return True, data, None
             except json.JSONDecodeError:
+                # Try next candidate
                 continue
 
     # Try to find JSON object/array in text (first { or [)
@@ -119,23 +160,44 @@ def _parse_json_lenient(text: str) -> tuple[bool, dict[str, Any] | None, str | N
 
             if end_idx:
                 json_str = text[idx:end_idx]
+
+                # Apply max candidate length
+                if len(json_str) > _MAX_CANDIDATE_LENGTH:
+                    continue
+
                 try:
                     data = json.loads(json_str)
                     return True, data, None
                 except json.JSONDecodeError:
+                    # Try next start character
                     continue
 
     return False, None, "No valid JSON found in text"
 
 
 def _get_payload_schema_path(payload_type: str) -> str:
-    """Get path to payload schema for a given type."""
-    return f"v1/{payload_type}.payload.schema.json"
+    """
+    Get path to payload schema for a given type.
+
+    Makes payload schema selection explicit and deterministic.
+    """
+    # Explicit mapping for deterministic schema selection
+    schema_map = {
+        "itinerary": "v1/itinerary.payload.schema.json",
+        "checklist": "v1/checklist.payload.schema.json",
+        "decision_tree": "v1/decision_tree.payload.schema.json",
+        "procedure": "v1/procedure.payload.schema.json",
+    }
+
+    if payload_type not in schema_map:
+        raise ValueError(f"Unknown payload_type: {payload_type}")
+
+    return schema_map[payload_type]
 
 
 def _validate_envelope(
     data: dict[str, Any],
-) -> tuple[bool, ValidationError | None]:
+) -> tuple[bool, ParseValidationError | None]:
     """
     Validate data against envelope schema.
 
@@ -162,7 +224,8 @@ def _validate_envelope(
                 "payload_type must be one of: " "itinerary, checklist, decision_tree, procedure"
             )
 
-        error = ValidationError(
+        error = ParseValidationError(
+            code=ENVELOPE_SCHEMA_FAILED,
             error_type="envelope_schema",
             message=e.message,
             failed_at=failed_at,
@@ -175,7 +238,7 @@ def _validate_envelope(
 def _validate_payload(
     payload: Any,
     payload_type: str,
-) -> tuple[bool, ValidationError | None]:
+) -> tuple[bool, ParseValidationError | None]:
     """
     Validate payload against its type-specific schema.
 
@@ -186,12 +249,13 @@ def _validate_payload(
         payload_schema = _load_schema(schema_path)
         jsonschema.validate(payload, payload_schema)
         return True, None
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         guidance = [
             f"Payload type '{payload_type}' schema not found. "
             "Ensure payload_type matches one of the 4 supported types."
         ]
-        error = ValidationError(
+        error = ParseValidationError(
+            code=PAYLOAD_SCHEMA_FAILED,
             error_type="payload_schema",
             message=str(e),
             guidance=guidance,
@@ -215,7 +279,8 @@ def _validate_payload(
                 "for fields like priority, transport.mode, or node.type."
             )
 
-        error = ValidationError(
+        error = ParseValidationError(
+            code=PAYLOAD_SCHEMA_FAILED,
             error_type="payload_schema",
             message=e.message,
             failed_at=failed_at,
@@ -246,7 +311,8 @@ def parse_and_validate(
     if not success:
         if strict_json:
             # Strict mode: fail immediately
-            error = ValidationError(
+            error = ParseValidationError(
+                code=JSON_STRICT_PARSE_FAILED,
                 error_type="json_parse",
                 message=parse_error or "Failed to parse JSON",
                 guidance=[
@@ -260,7 +326,8 @@ def parse_and_validate(
         # Try lenient parsing
         success, data, lenient_error = _parse_json_lenient(text)
         if not success:
-            error = ValidationError(
+            error = ParseValidationError(
+                code=JSON_LENIENT_PARSE_FAILED,
                 error_type="json_parse",
                 message=lenient_error or "Failed to parse JSON (strict and lenient)",
                 guidance=[

@@ -3,6 +3,10 @@
 import json
 
 from pocketguide.eval.parsing import (
+    ENVELOPE_SCHEMA_FAILED,
+    JSON_LENIENT_PARSE_FAILED,
+    JSON_STRICT_PARSE_FAILED,
+    PAYLOAD_SCHEMA_FAILED,
     parse_and_validate,
 )
 
@@ -34,6 +38,7 @@ class TestStrictJsonParsing:
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
         assert result.error is not None
+        assert result.error.code == JSON_STRICT_PARSE_FAILED
         assert result.error.error_type == "json_parse"
 
     def test_json_with_preamble_fails_strict(self):
@@ -51,6 +56,7 @@ class TestStrictJsonParsing:
         )
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == JSON_STRICT_PARSE_FAILED
         assert result.error.error_type == "json_parse"
 
 
@@ -108,6 +114,7 @@ class TestLenientJsonParsing:
         response = "No JSON here at all, just text with no braces or brackets"
         result = parse_and_validate(response, strict_json=False)
         assert not result.success
+        assert result.error.code == JSON_LENIENT_PARSE_FAILED
         assert result.error.error_type == "json_parse"
 
 
@@ -127,7 +134,9 @@ class TestEnvelopeValidation:
         response = json.dumps(data)
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == ENVELOPE_SCHEMA_FAILED
         assert result.error.error_type == "envelope_schema"
+        assert result.error.guidance  # Should have guidance
 
     def test_invalid_payload_type_enum(self):
         """Invalid payload_type should fail."""
@@ -143,6 +152,7 @@ class TestEnvelopeValidation:
         response = json.dumps(data)
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == ENVELOPE_SCHEMA_FAILED
         assert result.error.error_type == "envelope_schema"
 
     def test_additional_properties_rejected(self):
@@ -160,6 +170,7 @@ class TestEnvelopeValidation:
         response = json.dumps(data)
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == ENVELOPE_SCHEMA_FAILED
         assert result.error.error_type == "envelope_schema"
 
     def test_valid_envelope_with_metadata(self):
@@ -293,6 +304,7 @@ class TestPayloadValidation:
         response = json.dumps(data)
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == PAYLOAD_SCHEMA_FAILED
         assert result.error.error_type == "payload_schema"
 
     def test_invalid_procedure_missing_steps(self):
@@ -309,6 +321,7 @@ class TestPayloadValidation:
         response = json.dumps(data)
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == PAYLOAD_SCHEMA_FAILED
         assert result.error.error_type == "payload_schema"
 
     def test_question_node_without_options(self):
@@ -329,6 +342,7 @@ class TestPayloadValidation:
         response = json.dumps(data)
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == PAYLOAD_SCHEMA_FAILED
         assert result.error.error_type == "payload_schema"
 
 
@@ -340,6 +354,8 @@ class TestStructuredErrorHandling:
         response = '{"invalid":'
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == JSON_STRICT_PARSE_FAILED
+        assert result.error.error_type == "json_parse"
         assert result.error.guidance
         assert any("JSON" in g for g in result.error.guidance)
 
@@ -356,6 +372,8 @@ class TestStructuredErrorHandling:
         response = json.dumps(data)
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == ENVELOPE_SCHEMA_FAILED
+        assert result.error.error_type == "envelope_schema"
         assert result.error.guidance
         assert any("summary" in g.lower() for g in result.error.guidance)
 
@@ -373,6 +391,8 @@ class TestStructuredErrorHandling:
         response = json.dumps(data)
         result = parse_and_validate(response, strict_json=True)
         assert not result.success
+        assert result.error.code == PAYLOAD_SCHEMA_FAILED
+        assert result.error.error_type == "payload_schema"
         assert result.error.guidance
         assert any("payload" in g.lower() or "required" in g.lower() for g in result.error.guidance)
 
@@ -381,7 +401,7 @@ class TestStructuredErrorHandling:
         response = '{"bad":'
         result = parse_and_validate(response, strict_json=True)
         error_str = str(result.error)
-        assert "[json_parse]" in error_str
+        assert result.error.code in error_str
         assert "Guidance:" in error_str
 
     def test_parse_result_success_string(self):
