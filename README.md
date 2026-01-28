@@ -180,12 +180,14 @@ Output includes:
 - Token usage (prompt_tokens, completion_tokens, total_tokens)
 - Timing metrics (latency_s, tokens_per_s)
 
-The evaluation framework captures comprehensive metadata for reproducibility, including model configuration, generation parameters, device/dtype settings, Python version, installed packages (including torch/transformers versions)
-  id: "your-model-id"  # HuggingFace model ID or local path
-  revision: "main"     # Git revision/tag/branch
-```
-
 The evaluation framework captures comprehensive metadata for reproducibility, including model configuration, generation parameters, device/dtype settings, Python version, installed packages, and git commit hash.
+
+Example model configuration in `meta.json`:
+
+```yaml
+id: "your-model-id"  # HuggingFace model ID or local path
+revision: "main"     # Git revision/tag/branch
+```
 
 ## Project Structure
 
