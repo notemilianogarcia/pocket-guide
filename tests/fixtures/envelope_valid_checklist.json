@@ -1,0 +1,23 @@
+{
+  "summary": "Pre-travel checklist for a 2-week European backpacking trip.",
+  "assumptions": [
+    "Traveling within the Schengen Area",
+    "Traveling with carry-on luggage only",
+    "EU citizen or visa-exempt national"
+  ],
+  "uncertainty_notes": "Some border regulations change seasonally; verify current policies closer to departure.",
+  "next_steps": [
+    "Download necessary travel apps (maps, translation, payment)",
+    "Arrange travel insurance",
+    "Notify your bank of international travel"
+  ],
+  "verification_steps": [
+    "Check passport expiration (valid 6 months beyond travel dates)",
+    "Verify travel insurance coverage details",
+    "Confirm hotel cancellation policies"
+  ],
+  "payload_type": "checklist",
+  "payload": {
+    "placeholder": true
+  }
+}

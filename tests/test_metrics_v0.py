@@ -21,7 +21,7 @@ def test_strict_json_parse_valid():
 
 def test_strict_json_parse_valid_array():
     """Test strict JSON parsing with valid array."""
-    text = '[1, 2, 3]'
+    text = "[1, 2, 3]"
     ok, parsed, error = strict_json_parse(text)
     assert ok is True
     assert parsed == [1, 2, 3]
@@ -38,7 +38,7 @@ def test_strict_json_parse_with_whitespace():
 
 def test_strict_json_parse_invalid():
     """Test strict JSON parsing with invalid JSON."""
-    text = 'This is not JSON'
+    text = "This is not JSON"
     ok, parsed, error = strict_json_parse(text)
     assert ok is False
     assert parsed is None
@@ -62,11 +62,11 @@ def test_lenient_json_extract_valid_strict():
 
 def test_lenient_json_extract_code_fence():
     """Test lenient extraction from markdown code fence."""
-    text = '''Here is the data:
+    text = """Here is the data:
 ```json
 {"city": "Paris", "country": "France"}
 ```
-Hope this helps!'''
+Hope this helps!"""
     ok, parsed, error = lenient_json_extract_and_parse(text)
     assert ok is True
     assert parsed == {"city": "Paris", "country": "France"}
@@ -74,9 +74,9 @@ Hope this helps!'''
 
 def test_lenient_json_extract_code_fence_no_lang():
     """Test lenient extraction from code fence without language."""
-    text = '''```
+    text = """```
 {"status": "success"}
-```'''
+```"""
     ok, parsed, error = lenient_json_extract_and_parse(text)
     assert ok is True
     assert parsed == {"status": "success"}
@@ -101,7 +101,7 @@ def test_lenient_json_extract_nested_braces():
 
 def test_lenient_json_extract_array():
     """Test lenient extraction with array."""
-    text = 'The items are: [1, 2, 3, 4]'
+    text = "The items are: [1, 2, 3, 4]"
     ok, parsed, error = lenient_json_extract_and_parse(text)
     assert ok is True
     assert parsed == [1, 2, 3, 4]
@@ -109,7 +109,7 @@ def test_lenient_json_extract_array():
 
 def test_lenient_json_extract_invalid():
     """Test lenient extraction fails when no valid JSON found."""
-    text = 'This is just plain text without any JSON structure'
+    text = "This is just plain text without any JSON structure"
     ok, parsed, error = lenient_json_extract_and_parse(text)
     assert ok is False
     assert parsed is None

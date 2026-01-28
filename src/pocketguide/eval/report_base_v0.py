@@ -70,6 +70,7 @@ def generate_report(
     if overrides_path and overrides_path.exists():
         with open(overrides_path) as f:
             import yaml
+
             config = yaml.safe_load(f)
             manual_ids = config.get("curated_failure_ids", [])
 
@@ -231,8 +232,7 @@ def _build_report(
     # 5) Curated Failure Examples
     lines.append("## Curated Failure Examples\n")
     lines.append(
-        f"The following {len(curated)} examples illustrate key weaknesses "
-        "of the base model:\n"
+        f"The following {len(curated)} examples illustrate key weaknesses " "of the base model:\n"
     )
     for i, output in enumerate(curated, start=1):
         lines.append(_build_failure_example(i, output))
@@ -252,8 +252,12 @@ def _build_metrics_table(metrics: dict) -> str:
     by_suite = metrics.get("by_suite", {})
 
     lines = []
-    lines.append("| Suite | N | Strict JSON % | Lenient JSON % | Required Fields % | Assumptions % | Verification % | Clarifying % | Avg Latency (s) | p90 Latency (s) |\n")
-    lines.append("|-------|---|---------------|----------------|-------------------|---------------|----------------|--------------|-----------------|------------------|\n")
+    lines.append(
+        "| Suite | N | Strict JSON % | Lenient JSON % | Required Fields % | Assumptions % | Verification % | Clarifying % | Avg Latency (s) | p90 Latency (s) |\n"
+    )
+    lines.append(
+        "|-------|---|---------------|----------------|-------------------|---------------|----------------|--------------|-----------------|------------------|\n"
+    )
 
     # Overall row
     lines.append(_format_metric_row("**Overall**", overall))
@@ -268,6 +272,7 @@ def _build_metrics_table(metrics: dict) -> str:
 
 def _format_metric_row(label: str, data: dict) -> str:
     """Format one row of the metrics table."""
+
     def pct(value):
         if value is None:
             return "—"
@@ -442,8 +447,7 @@ def _build_summary(metrics: dict, curated: list[dict]) -> str:
         "hallucinated specificity and overconfidence.\n"
     )
     lines.append(
-        "- **Milestone 5**: Evaluate adapted model and measure improvement "
-        "across all metrics.\n"
+        "- **Milestone 5**: Evaluate adapted model and measure improvement " "across all metrics.\n"
     )
 
     return "".join(lines)
@@ -458,9 +462,7 @@ def _truncate(text: str, max_chars: int) -> str:
 
 def main():
     """CLI entry point."""
-    parser = argparse.ArgumentParser(
-        description="Generate Base Model Evaluation Report v0"
-    )
+    parser = argparse.ArgumentParser(description="Generate Base Model Evaluation Report v0")
     parser.add_argument(
         "--run_dir",
         type=Path,

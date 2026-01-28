@@ -50,9 +50,7 @@ def load_jsonl(file_path: Path) -> list[dict[str, Any]]:
             try:
                 item = json.loads(line)
             except json.JSONDecodeError as e:
-                raise ValueError(
-                    f"Invalid JSON in {file_path} at line {line_num}: {e}"
-                ) from e
+                raise ValueError(f"Invalid JSON in {file_path} at line {line_num}: {e}") from e
 
             # Validate required fields
             required = ["id", "prompt"]
@@ -323,27 +321,22 @@ def write_meta(
         "run_id": run_id,
         "created_at": datetime.now().isoformat(),
         "timezone": datetime.now().astimezone().tzname(),
-
         # Model identity
         "model_id": model_id,
         "revision": model_cfg.get("revision"),
-
         # Runtime config (resolved values)
         "seed": cfg.get("seed", 42),
         "device": cfg.get("device", "cpu"),
         "dtype": cfg.get("dtype", "float32"),
         "generation_config": cfg.get("gen", {}),
-
         # Suite manifest
         "suite_dir": str(suite_paths[0].parent) if suite_paths else None,
         "suite_files": [str(p) for p in suite_paths],
         "suite_counts": suite_counts,
         "suites": suites_info,
-
         # Config snapshots
         "eval_config_resolved": cfg,
         "configs_raw": configs_raw,
-
         # Environment snapshot
         "environment": {
             "python_version": platform.python_version(),
@@ -351,7 +344,6 @@ def write_meta(
             "sys_platform": sys.platform,
             "machine": platform.machine(),
         },
-
         # Package versions
         "package_versions": {
             "pocketguide": get_package_version("pocketguide"),
@@ -362,11 +354,9 @@ def write_meta(
             "transformers": get_package_version("transformers"),
             "jsonschema": get_package_version("jsonschema"),
         },
-
         # Git snapshot
         "git_commit": get_git_commit(),
         "git_is_dirty": get_git_is_dirty(),
-
         # Output location
         "run_dir": str(out_dir),
     }
@@ -481,7 +471,9 @@ def run_suite_directory(
             required_fields_ok = None
             missing_fields = []
             if required_fields and lenient_ok and lenient_parsed:
-                required_fields_ok, missing_fields = check_required_fields(lenient_parsed, required_fields)
+                required_fields_ok, missing_fields = check_required_fields(
+                    lenient_parsed, required_fields
+                )
 
             # Uncertainty markers
             uncertainty = detect_uncertainty_markers(output_text)
@@ -511,7 +503,10 @@ def run_suite_directory(
                 if isinstance(lenient_parsed, dict):
                     output_record["parsed_json_preview"] = {"keys": list(lenient_parsed.keys())}
                 elif isinstance(lenient_parsed, list):
-                    output_record["parsed_json_preview"] = {"type": "array", "length": len(lenient_parsed)}
+                    output_record["parsed_json_preview"] = {
+                        "type": "array",
+                        "length": len(lenient_parsed),
+                    }
 
             all_outputs.append(output_record)
 

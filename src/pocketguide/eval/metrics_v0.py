@@ -326,24 +326,36 @@ def _compute_suite_metrics(records: list[dict]) -> dict:
         return {"n": 0}
 
     # Parse rates
-    strict_json_ok_count = sum(1 for r in records if r.get("checks", {}).get("strict_json_ok", False))
-    lenient_json_ok_count = sum(1 for r in records if r.get("checks", {}).get("lenient_json_ok", False))
+    strict_json_ok_count = sum(
+        1 for r in records if r.get("checks", {}).get("strict_json_ok", False)
+    )
+    lenient_json_ok_count = sum(
+        1 for r in records if r.get("checks", {}).get("lenient_json_ok", False)
+    )
 
     # Required fields (only count records that have required_fields defined)
-    records_with_required = [r for r in records if r.get("checks", {}).get("required_fields_ok") is not None]
+    records_with_required = [
+        r for r in records if r.get("checks", {}).get("required_fields_ok") is not None
+    ]
     required_fields_ok_count = sum(
         1 for r in records_with_required if r.get("checks", {}).get("required_fields_ok", False)
     )
 
     # Uncertainty markers
     assumptions_count = sum(
-        1 for r in records if r.get("checks", {}).get("uncertainty", {}).get("has_assumptions_marker", False)
+        1
+        for r in records
+        if r.get("checks", {}).get("uncertainty", {}).get("has_assumptions_marker", False)
     )
     verification_count = sum(
-        1 for r in records if r.get("checks", {}).get("uncertainty", {}).get("has_verification_marker", False)
+        1
+        for r in records
+        if r.get("checks", {}).get("uncertainty", {}).get("has_verification_marker", False)
     )
     clarifying_count = sum(
-        1 for r in records if r.get("checks", {}).get("uncertainty", {}).get("has_clarifying_questions", False)
+        1
+        for r in records
+        if r.get("checks", {}).get("uncertainty", {}).get("has_clarifying_questions", False)
     )
 
     # Latency and throughput

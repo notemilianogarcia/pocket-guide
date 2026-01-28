@@ -1,0 +1,23 @@
+{
+  "summary": "5-day Japan itinerary focusing on Tokyo and Kyoto with practical travel tips.",
+  "assumptions": [
+    "Traveling in spring (April-May)",
+    "Budget of $50-75 per day",
+    "First-time visitor to Japan"
+  ],
+  "uncertainty_notes": "Accommodation prices vary by season and proximity to stations.",
+  "next_steps": [
+    "Book flights 2 months in advance",
+    "Reserve JR Pass before departure",
+    "Check visa requirements for your nationality"
+  ],
+  "verification_steps": [
+    "Visit official Japan tourism website for current entry requirements",
+    "Check JR Pass eligibility and pricing",
+    "Verify hotel availability on booking platforms"
+  ],
+  "payload_type": "itinerary",
+  "payload": {
+    "placeholder": true
+  }
+}
