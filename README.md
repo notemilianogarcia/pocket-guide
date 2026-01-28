@@ -70,11 +70,12 @@ Includes metrics summary, failure analysis, and curated examples.
 pocket-guide/
 ├── src/pocketguide/          # Core package
 │   ├── inference/           # Model inference and CLI
-│   ├── eval/                # Evaluation framework
+│   ├── eval/                # Evaluation framework (benchmark, metrics, parsing, reporting)
+│   ├── data/schemas/        # JSON schemas (v0 envelope, v1 payloads)
 │   └── utils/               # Utilities
 ├── configs/                 # Configuration files
 ├── data/benchmarks/v0/      # Benchmark suites (72 examples)
-├── tests/                   # Test suite
+├── tests/                   # Test suite (132 tests)
 ├── runs/                    # Evaluation outputs
 ├── docs/                    # Documentation
 ├── Makefile                 # Build commands
@@ -96,7 +97,17 @@ pocket-guide/
 - Report generation with failure analysis
 - Hardening for reproducibility and ergonomics
 
-### Milestone 2: Model Selection & Fine-tuning (Planned)
+### Milestone 2: Schema Validation & Fine-tuning (In Progress)
+**Lessons 2.1-2.3 Complete:**
+- ✅ Canonical envelope schema with versioned layout (v0)
+- ✅ Content payload schemas v1 (itinerary, checklist, decision_tree, procedure)
+- ✅ Parser + validator engine with strict/lenient JSON modes
+- ✅ Structured error handling with stable codes for metrics
+- ✅ Robust schema loading (importlib.resources) with caching
+- ✅ Comprehensive test coverage (26 parser tests, 132 total)
+
+**Next Steps:**
+- 🔄 Integration into benchmark pipeline (Lesson 2.4)
 - Base model evaluation and selection
 - LoRA/QLoRA fine-tuning pipeline
 - Training infrastructure with checkpointing
