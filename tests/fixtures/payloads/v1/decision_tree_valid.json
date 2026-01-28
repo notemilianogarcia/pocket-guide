@@ -1,0 +1,39 @@
+{
+  "title": "Visa Decision Tree",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "question",
+      "text": "What is your nationality?",
+      "options": [
+        "US citizen",
+        "EU citizen",
+        "Other"
+      ]
+    },
+    {
+      "id": "visa_required",
+      "type": "decision",
+      "text": "Visa is required for your destination",
+      "action": "Apply for visa at embassy"
+    },
+    {
+      "id": "visa_not_required",
+      "type": "outcome",
+      "text": "You can enter visa-free",
+      "action": "Proceed with travel documentation"
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "visa_required",
+      "condition": "US or EU citizen visiting Japan"
+    },
+    {
+      "from": "visa_required",
+      "to": "visa_not_required",
+      "condition": "Approved for visa exemption"
+    }
+  ]
+}

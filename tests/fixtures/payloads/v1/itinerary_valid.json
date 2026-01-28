@@ -1,0 +1,55 @@
+{
+  "title": "3-Day Japan Trip: Tokyo and Osaka",
+  "trip_days": [
+    {
+      "day": 1,
+      "summary": "Arrival in Tokyo and exploration",
+      "items": [
+        {
+          "time_block": "afternoon",
+          "activity": "Arrive at Narita Airport",
+          "location": "Tokyo, Japan",
+          "transport": {
+            "mode": "flight",
+            "details": "International arrival"
+          },
+          "warnings": [
+            "Allow 2 hours for immigration"
+          ]
+        },
+        {
+          "time_block": "evening",
+          "activity": "Check into hotel and explore neighborhood",
+          "location": "Shibuya, Tokyo",
+          "transport": {
+            "mode": "transit",
+            "details": "Narita Express to Tokyo Station"
+          },
+          "booking_needed": true,
+          "cost_estimate": {
+            "currency": "JPY",
+            "amount": 3000
+          }
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "summary": "Tokyo sightseeing",
+      "items": [
+        {
+          "time_block": "09:00-12:00",
+          "activity": "Visit Senso-ji Temple",
+          "location": "Asakusa, Tokyo",
+          "booking_needed": false
+        }
+      ]
+    }
+  ],
+  "timezone": "Asia/Tokyo",
+  "total_budget": {
+    "currency": "JPY",
+    "amount": 500000
+  },
+  "notes": "First time in Japan, travel insurance obtained"
+}

@@ -1,0 +1,31 @@
+{
+  "title": "Pre-Trip Checklist",
+  "groups": [
+    {
+      "name": "Documents",
+      "items": [
+        {
+          "text": "Check passport expiration",
+          "priority": "must",
+          "when": "1 month before departure",
+          "notes": "Must be valid 6 months beyond travel dates"
+        },
+        {
+          "text": "Book travel insurance",
+          "priority": "should",
+          "when": "before departure"
+        }
+      ]
+    },
+    {
+      "name": "Packing",
+      "items": [
+        {
+          "text": "Pack medications",
+          "priority": "must",
+          "done": false
+        }
+      ]
+    }
+  ]
+}

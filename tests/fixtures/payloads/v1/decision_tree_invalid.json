@@ -1,0 +1,11 @@
+{
+  "title": "Invalid Decision Tree",
+  "nodes": [
+    {
+      "id": "q1",
+      "type": "question",
+      "text": "Missing options field for question node"
+    }
+  ],
+  "edges": []
+}

@@ -1,0 +1,8 @@
+{
+  "title": "Incomplete Procedure",
+  "steps": [
+    {
+      "instruction": "Missing required step field"
+    }
+  ]
+}

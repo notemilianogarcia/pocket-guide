@@ -1,0 +1,37 @@
+{
+  "title": "Getting a Visa",
+  "steps": [
+    {
+      "step": 1,
+      "instruction": "Gather required documents (passport, photos, application form)",
+      "requires": [
+        "Valid passport",
+        "Recent passport-sized photos",
+        "Application fee"
+      ]
+    },
+    {
+      "step": 2,
+      "instruction": "Submit application at embassy",
+      "why": "Official channel for visa processing",
+      "warning": "Processing may take 2-4 weeks",
+      "requires": [
+        "All documents",
+        "Appointment (if required)"
+      ]
+    },
+    {
+      "step": 3,
+      "instruction": "Collect visa or check status",
+      "why": "Confirm approval before travel"
+    }
+  ],
+  "estimated_time": "3 weeks (excluding travel time to embassy)",
+  "preconditions": [
+    "Research visa requirements for your destination and nationality"
+  ],
+  "postchecks": [
+    "Verify visa dates and conditions",
+    "Ensure passport has blank pages"
+  ]
+}
