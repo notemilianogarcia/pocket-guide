@@ -107,63 +107,55 @@ pocket-guide/
 ## Milestones
 
 ### Milestone 0: Project Foundation ✅
-Established clean repository structure with stable commands, configuration files, and placeholders for all pipeline stages. The project is runnable end-to-end in stubbed form, ensuring consistent and reproducible structure for all future work.
+Clean repository structure with stable commands, configuration files, and end-to-end pipeline placeholders. Runnable in stubbed form.
 
 ### Milestone 1: Baseline Evaluation ✅
-Selected and evaluated a single open-source student model on travel-specific benchmarks before any adaptation. Produced base model report exposing hallucinations, structure failures, and uncertainty mishandling—establishing the reference point for all improvements.
+Evaluated open-source student model on travel benchmarks pre-adaptation. Base report establishes reference point for all improvements.
 
 ### Milestone 2: Behavioral Contracts ✅
-Defined valid response format through standard envelope schema (v0) and structured output schemas (v1: itinerary, checklist, procedure, decision_tree). Implemented validation and parsing logic with strict/lenient modes, enabling objective measurement of contract compliance in training and evaluation.
+- Standard envelope schema (v0) + structured output schemas (v1)
+- Validation/parsing engine (strict/lenient modes)
+- Objective contract compliance measurement
 
 ### Milestone 3: Synthetic Data Engine 🔄 (In Progress)
 
-Building a teacher-driven synthetic data pipeline to generate high-quality travel instruction examples. Focus is on consistent demonstrations of good decision-support behavior: proper structure, uncertainty handling, and verification guidance.
+**Goal:** Teacher-driven pipeline generating high-quality travel instruction examples with proper structure, uncertainty handling, and verification guidance.
 
-**Current Status (Lessons 3.1-3.2 Complete):**
+**Completed (Lessons 3.1-3.2):**
 
-**Data Pipeline Infrastructure:**
-- ✅ Versioned prompt templates (v1) for 4 payload types with strict JSON output requirements
-- ✅ Dataset specification defining 120 examples across 7 categories, 3 difficulty levels
-- ✅ Deterministic prompt planner CLI (`make data`) with seed-based reproducibility
-- ✅ Generated prompt plans with statistics and manifest tracking
+*Data Pipeline:*
+- Versioned prompt templates (4 payload types)
+- Dataset spec (120 examples, 7 categories, 3 difficulty levels)
+- Deterministic prompt planner CLI (`make data`)
 
-**Teacher Provider System:**
-- ✅ Abstract teacher interface (`TeacherClient`) with request/response dataclasses
-- ✅ OpenRouter backend client with OpenAI-compatible API
-- ✅ Cost-controlled model fallback chain: 2 free models → 1 paid fallback
-- ✅ Rate limiting (15 RPM), exponential backoff with jitter, retry logic
-- ✅ Environment-based API key management (.env with python-dotenv)
-- ✅ Typed error handling: fail-fast on auth/bad requests, retry on transient errors
-- ✅ Comprehensive observability: token usage, latency, fallback tracking
+*Teacher Provider:*
+- OpenRouter backend with cost-controlled fallback chain (2 free → 1 paid)
+- Rate limiting (15 RPM), exponential backoff, retry logic
+- Environment-based API keys (.env support)
+- Typed error handling (fail-fast vs retry)
+- Full observability (tokens, latency, fallback tracking)
 
-**Technical Features:**
-- Dry-run mode for testing without API costs
-- `fallback_to_paid` flag to prevent accidental spending
-- Smoke test CLI for manual verification
-- 156 tests passing (23 new tests for teacher system)
+*Features:* Dry-run mode, `fallback_to_paid` flag, 156 tests passing
 
-**Next Steps:**
-- 🔄 Batch generation CLI to generate all 120 examples (Lesson 3.3)
-- Response validation and quality checks
-- Dataset versioning and storage
+**Next:** Batch generation CLI (Lesson 3.3), validation, versioning
 
 ### Milestone 4: Data Quality & Splits (Planned)
-Apply deduplication, balancing, rejection filters, and leakage prevention to synthetic dataset. Create clean held-out benchmark split ensuring proper separation between training and evaluation data.
+Deduplication, balancing, rejection filters, leakage prevention. Clean held-out benchmark split.
 
 ### Milestone 5: Model Adaptation (Planned)
-Fine-tune student model using LoRA/QLoRA on cleaned synthetic dataset. Track experiments, save artifacts, and document configuration choices in training report.
+LoRA/QLoRA fine-tuning on cleaned synthetic dataset. Experiment tracking and training report.
 
 ### Milestone 6: Rigorous Evaluation (Planned)
-Compare base and adapted models using objective metrics (format compliance, uncertainty signaling, constraint satisfaction). Produce evaluation report with curated qualitative examples showing improvements and remaining failures.
+Base vs adapted model comparison. Objective metrics + curated qualitative examples.
 
 ### Milestone 7: Evidence-Driven Iteration (Planned)
-Apply targeted fixes based on failure analysis (data augmentation, stricter quality controls). Retrain and re-evaluate to demonstrate evidence-based improvement methodology.
+Targeted fixes based on failure analysis. Retrain and re-evaluate.
 
 ### Milestone 8: Deployment Realism (Planned)
-Quantize adapted model and package for local, offline inference. Document memory usage, latency, and runtime constraints proving usability on limited hardware.
+Quantize model, package for local/offline inference. Document resource constraints.
 
 ### Milestone 9: Portfolio Finalization (Planned)
-Polish README, add demo, summarize results, document limitations and safety considerations. Complete the project as a hireable artifact demonstrating ML research thinking and engineering execution.
+Polish README, demo, results summary, limitations, safety considerations.
 
 ## Development
 
