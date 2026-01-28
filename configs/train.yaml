@@ -1,0 +1,34 @@
+# Training Configuration
+# Placeholder for fine-tuning settings (Milestone 2+)
+
+# Model selection
+model_name: "TBD"  # To be determined in later milestones
+base_model_path: null
+
+# LoRA settings
+lora:
+  enabled: false
+  rank: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules: ["q_proj", "v_proj"]
+
+# Training hyperparameters
+training:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  num_epochs: 3
+  warmup_steps: 100
+  max_seq_length: 2048
+  seed: 42
+
+# Optimization
+quantization:
+  enabled: false
+  bits: 4
+
+# Output
+output_dir: "runs/train"
+checkpoint_steps: 500
+save_total_limit: 3

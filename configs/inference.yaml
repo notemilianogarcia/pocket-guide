@@ -1,0 +1,18 @@
+# Inference Configuration
+# Controls model inference behavior (currently stub)
+
+# Generation parameters (not used in stub, but defined for future)
+max_tokens: 512
+temperature: 0.0  # Deterministic
+top_p: 1.0
+
+# Response structure requirements
+required_sections:
+  - "Summary"
+  - "Assumptions"
+  - "Next steps"
+
+# Safety and reliability
+enforce_structure: true
+fallback_enabled: true
+offline_mode: true  # No external API calls

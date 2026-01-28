@@ -1,0 +1,40 @@
+# Evaluation Configuration
+# Controls benchmark execution and output
+
+# Model configuration
+model:
+  id: "REPLACE_ME"  # Set to HuggingFace model ID or local path
+  revision: null     # Git revision/tag/branch, null = latest
+
+# Reproducibility
+seed: 42
+
+# Generation parameters
+gen:
+  max_new_tokens: 256
+  do_sample: false
+  temperature: 0.0
+  top_p: 1.0
+
+# Evaluation suites (legacy: single suite path)
+suites:
+  - path: "eval/suites/smoke.jsonl"
+    name: "smoke"
+
+# Suite directory (new: multiple JSONL files, takes precedence over suites)
+suite_dir: "data/benchmarks/v0"
+
+# Output directory (timestamped subdirs created automatically)
+out_root: "runs/eval"
+
+# Hardware configuration
+device: "cpu"
+dtype: "float32"
+# Evaluation settings
+max_concurrent: 1  # Sequential for determinism
+timeout_seconds: 30
+
+# Result formatting
+save_predictions: true
+save_meta: true
+verbose: true
