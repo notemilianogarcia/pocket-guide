@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketguide.dev/schemas/v1/critique.schema.json",
+  "title": "Critique Schema v1",
+  "description": "Schema for teacher-generated critiques of draft responses",
+  "type": "object",
+  "required": ["id", "verdict", "issues", "scores", "hallucination", "verification", "schema", "rewrite_instructions"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Draft ID being critiqued (must match draft record)"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "revise", "reject"],
+      "description": "Overall quality verdict: pass=ready for training, revise=needs refinement, reject=discard"
+    },
+    "issues": {
+      "type": "array",
+      "description": "List of identified issues (empty if none)",
+      "items": {
+        "type": "object",
+        "required": ["type", "severity", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["hallucination", "overconfidence", "schema", "verification", "actionability", "clarity", "safety"],
+            "description": "Category of issue"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "Impact level"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable description of the issue"
+          },
+          "evidence_path": {
+            "type": "string",
+            "description": "JSON path to the problematic content (e.g., 'payload.trip_days[0].activities')"
+          }
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "required": ["actionability", "clarity", "schema_compliance", "safety_risk"],
+      "additionalProperties": false,
+      "properties": {
+        "actionability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "1=vague, 5=highly actionable"
+        },
+        "clarity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "1=confusing, 5=very clear"
+        },
+        "schema_compliance": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "1=many violations, 5=perfect compliance"
+        },
+        "safety_risk": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "1=high risk, 5=very safe"
+        }
+      }
+    },
+    "hallucination": {
+      "type": "object",
+      "required": ["risk_level", "risky_claims", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "risk_level": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Overall hallucination risk assessment"
+        },
+        "risky_claims": {
+          "type": "array",
+          "description": "Specific claims that may be fabricated or time-sensitive (empty if none)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Explanation of hallucination assessment"
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["missing_when_needed", "suggested_steps"],
+      "additionalProperties": false,
+      "properties": {
+        "missing_when_needed": {
+          "type": "boolean",
+          "description": "True if verification guidance is needed but absent"
+        },
+        "suggested_steps": {
+          "type": "array",
+          "description": "Recommended verification steps (empty if none needed)",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "schema": {
+      "type": "object",
+      "required": ["envelope_ok", "payload_ok", "notes", "missing_fields"],
+      "additionalProperties": false,
+      "properties": {
+        "envelope_ok": {
+          "type": "boolean",
+          "description": "Whether envelope schema validation passed"
+        },
+        "payload_ok": {
+          "type": "boolean",
+          "description": "Whether payload schema validation passed"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional schema compliance observations"
+        },
+        "missing_fields": {
+          "type": "array",
+          "description": "Required fields that are absent (empty if complete)",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rewrite_instructions": {
+      "type": "array",
+      "description": "Actionable imperatives for refinement (empty if verdict=pass)",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "extra": {
+      "type": "object",
+      "description": "Optional additional metadata",
+      "additionalProperties": true
+    }
+  }
+}

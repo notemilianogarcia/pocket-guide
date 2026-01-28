@@ -23,7 +23,92 @@ from pocketguide.eval.metrics_v0 import (
 )
 from pocketguide.eval.parsing import parse_and_validate
 from pocketguide.inference.cli import format_response, generate_stub_response
+from pocketguide.teachers.base import TeacherRequest
+from pocketguide.teachers.openrouter import OpenRouterTeacherClient
+from pocketguide.teachers.router import TeacherRouterClient
 from pocketguide.utils.run_id import make_run_id
+
+
+def create_openrouter_client(cfg: dict) -> TeacherRouterClient | None:
+    """Create OpenRouter client from eval config if enabled.
+    
+    Args:
+        cfg: Evaluation configuration dict
+        
+    Returns:
+        TeacherRouterClient if OpenRouter is enabled, None otherwise
+    """
+    runtime = cfg.get("runtime", {})
+    if not runtime.get("use_openrouter", False):
+        return None
+    
+    model_config = cfg.get("model", {})
+    models = model_config.get("models", [])
+    
+    if not models:
+        # Fallback to single model ID if models list not provided
+        single_model = model_config.get("id")
+        if single_model and single_model != "REPLACE_ME":
+            models = [single_model]
+        else:
+            return None
+    
+    # Create OpenRouter backend
+    rate_limit_cfg = cfg.get("rate_limit", {})
+    backend = OpenRouterTeacherClient(
+        rpm=rate_limit_cfg.get("rpm", 15),
+        dry_run=runtime.get("dry_run", False),
+        timeout_s=runtime.get("timeout_s", 60),
+    )
+    
+    # Create router with fallback
+    router = TeacherRouterClient(
+        backend=backend,
+        models=models,
+        fallback_to_paid=runtime.get("fallback_to_paid", True),
+    )
+    
+    return router
+
+
+def generate_openrouter_response(prompt: str, client: TeacherRouterClient, cfg: dict) -> dict:
+    """Generate response using OpenRouter API.
+    
+    Args:
+        prompt: Input prompt
+        client: TeacherRouterClient instance
+        cfg: Evaluation configuration
+        
+    Returns:
+        Dictionary with output_text, usage, timing, and model info
+    """
+    gen_cfg = cfg.get("gen", {})
+    
+    # Build request
+    request = TeacherRequest(
+        messages=[
+            {"role": "system", "content": "You are a helpful travel assistant. Provide structured responses in JSON format."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=gen_cfg.get("temperature", 0.2),
+        top_p=gen_cfg.get("top_p", 0.9),
+        max_tokens=gen_cfg.get("max_tokens", 900),
+        seed=cfg.get("seed", 42),
+    )
+    
+    # Call teacher with fallback
+    response = client.generate(request)
+    
+    return {
+        "output_text": response.text,
+        "usage": response.usage or {},
+        "timing": response.timing or {},
+        "model": response.model,
+        "provider": response.provider,
+        "request_id": response.request_id,
+        "attempted_models": response.raw.get("attempted_models", []),
+        "selected_model": response.raw.get("selected_model"),
+    }
 
 
 def load_jsonl(file_path: Path) -> list[dict[str, Any]]:
@@ -506,6 +591,11 @@ def run_suite_directory(
     # Determine suite directory
     if suite_dir is None:
         suite_dir = Path(cfg.get("suite_dir", "data/benchmarks/v0"))
+    
+    # Create OpenRouter client if enabled
+    openrouter_client = create_openrouter_client(cfg)
+    if openrouter_client and verbose:
+        print("Using OpenRouter API with model fallback chain")
 
     if not suite_dir.exists():
         raise FileNotFoundError(f"Suite directory not found: {suite_dir}")
@@ -571,9 +661,21 @@ def run_suite_directory(
             if verbose and idx % max(1, len(examples) // 5) == 0:
                 print(f"  Processing {idx}/{len(examples)}...")
 
-            # Generate response (stub for now)
-            response = generate_stub_response(prompt)
-            output_text = format_response(response)
+            # Generate response
+            if openrouter_client:
+                # Use OpenRouter API with fallback
+                response_data = generate_openrouter_response(prompt, openrouter_client, cfg)
+                output_text = response_data["output_text"]
+                response_usage = response_data["usage"]
+                response_timing = response_data["timing"]
+                model_used = response_data["selected_model"] or response_data["model"]
+            else:
+                # Use stub response
+                response = generate_stub_response(prompt)
+                output_text = format_response(response)
+                response_usage = response.get("usage", {})
+                response_timing = response.get("timing", {})
+                model_used = cfg.get("model", {}).get("id", "REPLACE_ME")
 
             # Compute checks (legacy)
             strict_ok, strict_parsed, _ = strict_json_parse(output_text)
@@ -599,9 +701,9 @@ def run_suite_directory(
                 "suite": suite_name,
                 "prompt": prompt,
                 "output_text": output_text,
-                "usage": response.get("usage", {}),
-                "timing": response.get("timing", {}),
-                "model": cfg.get("model", {}).get("id", "REPLACE_ME"),
+                "usage": response_usage,
+                "timing": response_timing,
+                "model": model_used,
                 "seed": cfg.get("seed", 42),
                 "gen": cfg.get("gen", {}),
                 "checks": {

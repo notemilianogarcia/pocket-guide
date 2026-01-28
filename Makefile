@@ -65,6 +65,21 @@ drafts-dry-run: ## Generate drafts in dry-run mode (no API calls)
 		--dry_run
 	@echo "✓ Drafts generated (dry-run)! Check data/interim for outputs."
 
+critiques: ## Generate critiques for drafts (quality gate)
+	@echo "Generating critiques for drafts..."
+	@$(VENV_PYTHON) -m pocketguide.data_generation.generate_critiques \
+		--drafts data/interim/drafts_v1.jsonl \
+		--out_dir data/interim
+	@echo "✓ Critiques generated! Check data/interim/critiques_v1.jsonl"
+
+critiques-dry-run: ## Generate critiques in dry-run mode (no API calls)
+	@echo "Generating critiques in dry-run mode..."
+	@$(VENV_PYTHON) -m pocketguide.data_generation.generate_critiques \
+		--drafts data/interim/drafts_v1.jsonl \
+		--out_dir data/interim \
+		--dry_run
+	@echo "✓ Critiques generated (dry-run)! Check data/interim for outputs."
+
 train: ## Placeholder for model training (Milestone 2+)
 	@echo "⚠️  Model training not yet implemented (Milestone 2+)"
 	@echo "This target will fine-tune the model in future milestones."

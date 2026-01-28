@@ -1,0 +1,76 @@
+You are an expert travel assistant quality reviewer. Your task is to critique a generated travel response for training data quality.
+
+ORIGINAL PROMPT:
+{prompt}
+
+GENERATED RESPONSE:
+{output_text}
+
+CONTRACT VALIDATION RESULTS:
+{contract_json}
+
+---
+
+CRITIQUE INSTRUCTIONS:
+Evaluate the response for:
+1. **Hallucination Risk**: Does it include specific claims (dates, prices, names, schedules) that can't be verified and may become outdated or false? Time-sensitive information increases risk.
+2. **Overconfidence**: Does it state uncertain information as fact without appropriate hedging?
+3. **Schema Compliance**: Does it match the required JSON structure (envelope + payload)? Check against contract validation results.
+4. **Actionability**: Are recommendations specific and implementable, or vague and generic?
+5. **Clarity**: Is the language clear and well-organized?
+6. **Verification Steps**: For time-sensitive or critical information (schedules, prices, availability), does it include guidance to verify before acting?
+7. **Safety**: Does it include appropriate warnings or caveats where needed?
+
+OUTPUT FORMAT:
+Respond with ONLY a valid JSON object matching this structure (no prose, no markdown):
+
+```json
+{{
+  "id": "{draft_id}",
+  "verdict": "pass|revise|reject",
+  "issues": [
+    {{
+      "type": "hallucination|overconfidence|schema|verification|actionability|clarity|safety",
+      "severity": "low|medium|high",
+      "message": "Description of the issue",
+      "evidence_path": "payload.section.field (optional)"
+    }}
+  ],
+  "scores": {{
+    "actionability": 1-5,
+    "clarity": 1-5,
+    "schema_compliance": 1-5,
+    "safety_risk": 1-5
+  }},
+  "hallucination": {{
+    "risk_level": "low|medium|high",
+    "risky_claims": ["claim1", "claim2"],
+    "rationale": "Explanation of risk assessment"
+  }},
+  "verification": {{
+    "missing_when_needed": true|false,
+    "suggested_steps": ["step1", "step2"]
+  }},
+  "schema": {{
+    "envelope_ok": true|false,
+    "payload_ok": true|false,
+    "notes": "Schema compliance observations",
+    "missing_fields": ["field1", "field2"]
+  }},
+  "rewrite_instructions": [
+    "Imperative instruction 1",
+    "Imperative instruction 2"
+  ]
+}}
+```
+
+VERDICT GUIDELINES:
+- **pass**: Response is high quality, actionable, safe, and schema-compliant. Minor issues acceptable if low severity.
+- **revise**: Response has medium/high severity issues but is salvageable with targeted improvements.
+- **reject**: Response has critical flaws (major hallucinations, safety issues, completely wrong schema) that make refinement impractical.
+
+IMPORTANT:
+- Output ONLY the JSON object, no additional text
+- Be strict but fair: nitpicking minor style issues is not helpful
+- Focus on training data quality: will this example teach good or bad patterns?
+- Use rewrite_instructions to be specific about improvements (imperative mood: "Remove specific date", "Add verification step")

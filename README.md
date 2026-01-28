@@ -117,11 +117,11 @@ Evaluated open-source student model on travel benchmarks pre-adaptation. Base re
 - Validation/parsing engine (strict/lenient modes)
 - Objective contract compliance measurement
 
-### Milestone 3: Synthetic Data Engine ✅
+### Milestone 3: Synthetic Data Engine 🔄 (In Progress)
 
 **Goal:** Teacher-driven pipeline generating high-quality travel instruction examples with proper structure, uncertainty handling, and verification guidance.
 
-**Completed (Lessons 3.1-3.3):**
+**Completed (Lessons 3.1-3.4):**
 
 *Data Pipeline (Lesson 3.1):*
 - Versioned prompt templates (4 payload types)
@@ -142,9 +142,18 @@ Evaluated open-source student model on travel benchmarks pre-adaptation. Base re
 - Dry-run mode, resume support, optional limit
 - Pass-rate statistics by type/category/difficulty/error
 - Reproducible hashing, config snapshots, run metadata
-- 169 tests passing (13 specific to draft generation)
 
-**Docs:** [Lesson 3.1-3.2](docs/milestones/m3_l2_teacher_provider.md) | [Lesson 3.3](docs/milestones/m3_l3_draft_generation.md)
+*Critique Pass - Quality Gate (Lesson 3.4):*
+- Schema-validated critique generation (critique.schema.json)
+- Structured evaluation: hallucination risk, schema compliance, actionability, safety
+- Verdict-driven workflow (pass/revise/reject)
+- Failure-tolerant pipeline (invalid critiques logged, not crashed)
+- Quality metrics: parse rates, verdict distribution, issue types, avg scores
+- 185 tests passing (16 specific to critique generation)
+
+**Docs:** [Lesson 3.1-3.2](docs/milestones/m3_l2_teacher_provider.md) | [Lesson 3.3](docs/milestones/m3_l3_draft_generation.md) | [Lesson 3.4](docs/milestones/m3_l4_critique_pass.md)
+
+**Next:** Refinement pass (Lesson 3.5), final dataset assembly
 
 ### Milestone 4: Data Quality & Splits (Planned)
 Deduplication, balancing, rejection filters, leakage prevention. Clean held-out benchmark split.

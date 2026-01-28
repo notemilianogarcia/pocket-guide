@@ -1,9 +1,17 @@
 # Evaluation Configuration
 # Controls benchmark execution and output
 
-# Model configuration
+# Model configuration (supports both local HF models and OpenRouter API models)
 model:
-  id: "REPLACE_ME"  # Set to HuggingFace model ID or local path
+  # For OpenRouter API with fallback chain (requires OPENROUTER_API_KEY env var)
+  models:
+    - "meta-llama/llama-3.3-70b-instruct:free"
+    - "openai/gpt-oss-120b:free"
+    - "qwen/qwen3-next-80b-a3b-instruct:free"
+    - "openai/gpt-4o-2024-08-06"
+  
+  # For local HuggingFace model (fallback if models list not provided)
+  id: "meta-llama/llama-3.3-70b-instruct:free"
   revision: null     # Git revision/tag/branch, null = latest
 
 # Reproducibility
@@ -13,8 +21,23 @@ seed: 42
 gen:
   max_new_tokens: 256
   do_sample: false
-  temperature: 0.0
-  top_p: 1.0
+  temperature: 0.2
+  top_p: 0.9
+  max_tokens: 900  # For OpenRouter API
+
+# Runtime configuration for OpenRouter
+runtime:
+  use_openrouter: true  # Set to false to use local HuggingFace models
+  dry_run: false        # Set to true for testing without API calls
+  timeout_s: 60
+  fallback_to_paid: true  # Allow fallback to paid models
+
+# Rate limiting for OpenRouter
+rate_limit:
+  rpm: 15
+  max_retries_per_model: 6
+  backoff_base_s: 1.0
+  backoff_max_s: 30.0
 
 # Evaluation suites (legacy: single suite path)
 suites:
