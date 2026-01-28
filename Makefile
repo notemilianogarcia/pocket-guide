@@ -80,6 +80,28 @@ critiques-dry-run: ## Generate critiques in dry-run mode (no API calls)
 		--dry_run
 	@echo "✓ Critiques generated (dry-run)! Check data/interim for outputs."
 
+dataset: ## Generate final training dataset from plans, drafts, and critiques
+	@echo "Generating final training dataset..."
+	@$(VENV_PYTHON) -m pocketguide.data_generation.generate_dataset_v1 \
+		--plan data/interim/prompt_plan_v1.jsonl \
+		--drafts data/interim/drafts_v1.jsonl \
+		--critiques data/interim/critiques_v1.jsonl \
+		--out_dir data/processed \
+		--gating_mode lenient \
+		--resume
+	@echo "✓ Dataset generated! Check data/processed/dataset_v1.jsonl"
+
+dataset-dry-run: ## Generate dataset in dry-run mode (no API calls)
+	@echo "Generating dataset in dry-run mode..."
+	@$(VENV_PYTHON) -m pocketguide.data_generation.generate_dataset_v1 \
+		--plan data/interim/prompt_plan_v1.jsonl \
+		--drafts data/interim/drafts_v1.jsonl \
+		--critiques data/interim/critiques_v1.jsonl \
+		--out_dir data/processed \
+		--gating_mode lenient \
+		--dry_run
+	@echo "✓ Dataset generated (dry-run)! Check data/processed for outputs."
+
 train: ## Placeholder for model training (Milestone 2+)
 	@echo "⚠️  Model training not yet implemented (Milestone 2+)"
 	@echo "This target will fine-tune the model in future milestones."

@@ -1,0 +1,62 @@
+VERSION: v1
+TASK: Rewrite travel advice response based on critique feedback
+
+You are an expert travel advisor AI. You previously generated a draft response that has been evaluated by a quality reviewer. Your task is to produce a FINAL, polished response that addresses all feedback.
+
+=== ORIGINAL USER PROMPT ===
+{prompt}
+
+=== YOUR DRAFT OUTPUT ===
+{draft_output}
+
+=== QUALITY CRITIQUE ===
+{critique_json}
+
+=== REWRITE INSTRUCTIONS ===
+{rewrite_instructions}
+
+=== YOUR TASK ===
+Produce a FINAL response that:
+1. Follows ALL rewrite instructions exactly
+2. Fixes issues identified in the critique
+3. Maintains the same payload_type as the original draft
+4. Outputs VALID JSON matching the envelope + payload schemas
+
+=== CRITICAL OUTPUT REQUIREMENTS ===
+
+**Format:**
+- Output ONLY valid JSON
+- NO markdown code fences (no ```json)
+- NO explanatory text before or after the JSON
+- NO extra keys beyond the schema
+
+**Envelope structure (required fields):**
+{{
+  "summary": "One clear sentence (8-15 words) answering the prompt directly",
+  "assumptions": ["List key assumptions made", "e.g., citizenship, travel purpose, timeframe"],
+  "uncertainty_notes": "What could change or needs verification (empty string if none)",
+  "next_steps": ["Actionable follow-up steps for the traveler"],
+  "verification_steps": ["Official sources to verify time-sensitive info"],
+  "payload_type": "{payload_type}",
+  "payload": {{ ... }}
+}}
+
+**Uncertainty handling:**
+- If the topic involves visas, entry requirements, fees, prices, regulations, border rules, embassy info, airport procedures, customs, safety advisories, or opening hours:
+  - You MUST include at least one verification_step
+  - You MUST provide uncertainty_notes explaining what could change
+  - NEVER use absolute language like "guaranteed", "definitely", "always", "no need to verify"
+  - Use careful phrasing: "typically", "as of [date]", "check official sources", "may vary"
+
+**Verification steps:**
+- Provide specific, actionable sources (e.g., "Check embassy website: [country].embassy.gov")
+- Include at least 1-2 steps for time-sensitive topics
+- Can be empty array [] only for non-time-sensitive topics (general travel tips, cultural advice)
+
+**Rewrite instructions compliance:**
+- Address EVERY instruction in the list above
+- If instructed to add verification_steps, include at least 2 specific sources
+- If instructed to soften certainty, replace absolute claims with conditional language
+- If instructed to fix schema issues, ensure all required fields present and correctly typed
+
+Output your final response now (JSON only):

@@ -117,11 +117,11 @@ Evaluated open-source student model on travel benchmarks pre-adaptation. Base re
 - Validation/parsing engine (strict/lenient modes)
 - Objective contract compliance measurement
 
-### Milestone 3: Synthetic Data Engine 🔄 (In Progress)
+### Milestone 3: Synthetic Data Engine ✅ (Complete)
 
 **Goal:** Teacher-driven pipeline generating high-quality travel instruction examples with proper structure, uncertainty handling, and verification guidance.
 
-**Completed (Lessons 3.1-3.4):**
+**Completed (Lessons 3.1-3.5):**
 
 *Data Pipeline (Lesson 3.1):*
 - Versioned prompt templates (4 payload types)
@@ -149,14 +149,22 @@ Evaluated open-source student model on travel benchmarks pre-adaptation. Base re
 - Verdict-driven workflow (pass/revise/reject)
 - Failure-tolerant pipeline (invalid critiques logged, not crashed)
 - Quality metrics: parse rates, verdict distribution, issue types, avg scores
-- 185 tests passing (16 specific to critique generation)
 
-**Docs:** [Lesson 3.1-3.2](docs/milestones/m3_l2_teacher_provider.md) | [Lesson 3.3](docs/milestones/m3_l3_draft_generation.md) | [Lesson 3.4](docs/milestones/m3_l4_critique_pass.md)
+*Refinement + Final Dataset (Lesson 3.5):*
+- Quality-gated refinement: joins plans, drafts, critiques by ID
+- Deterministic quality gates: contract validation, verification requirements, overconfidence detection
+- Time-sensitive keyword detection for visa/fees/regulations → requires verification_steps
+- Gating modes: strict (JSON only) vs lenient (markdown extraction)
+- Output: dataset_v1.jsonl (accepted), dataset_v1_rejected.jsonl (debugging)
+- Full provenance: manifest with input hashes, stats with acceptance rates and gate metrics
 
-**Next:** Refinement pass (Lesson 3.5), final dataset assembly
+**Test Coverage:** 214 tests passing (29 new for refinement + quality gates)
+
+**Docs:** [Lesson 3.1-3.2](docs/milestones/m3_l2_teacher_provider.md) | [Lesson 3.3](docs/milestones/m3_l3_draft_generation.md) | [Lesson 3.4](docs/milestones/m3_l4_critique_pass.md) | [Lesson 3.5](docs/milestones/m3_l5_refinement.md)
 
 ### Milestone 4: Data Quality & Splits (Planned)
 Deduplication, balancing, rejection filters, leakage prevention. Clean held-out benchmark split.
+
 
 ### Milestone 5: Model Adaptation (Planned)
 LoRA/QLoRA fine-tuning on cleaned synthetic dataset. Experiment tracking and training report.
