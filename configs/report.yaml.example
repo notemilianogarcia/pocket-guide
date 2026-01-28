@@ -1,0 +1,12 @@
+# Example report configuration for manual override of curated failure IDs
+# Copy this file to configs/report.yaml and customize the failure IDs
+
+curated_failure_ids:
+  - "fmt_001"
+  - "fmt_012"
+  - "safety_003"
+  - "uncertainty_007"
+  - "travel_015"
+  # Add up to 10 example IDs to manually curate the report
+  # If fewer than 10 are specified, auto-selection fills remaining slots
+  # If this file doesn't exist, all 10 examples are auto-selected

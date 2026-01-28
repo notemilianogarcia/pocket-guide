@@ -1,0 +1,14 @@
+# Data Configuration
+# Used for dataset preparation and caching
+
+# Dataset sources (to be populated in future milestones)
+dataset_paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+
+# Caching
+cache_dir: "data/cache"
+
+# Dataset settings
+max_samples: null  # null = use all available
+seed: 42
