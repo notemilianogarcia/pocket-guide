@@ -1,4 +1,4 @@
-.PHONY: env lint test data train run eval clean help
+.PHONY: env lint test data drafts drafts-dry-run train run eval clean help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -49,6 +49,21 @@ data: ## Generate prompt plan for synthetic dataset
 		--spec data/specs/dataset_v1_spec.yaml \
 		--out_dir data/interim
 	@echo "✓ Prompt plan generated!"
+
+drafts: ## Generate draft responses from teacher model
+	@echo "Generating draft responses from teacher model..."
+	@$(VENV_PYTHON) -m pocketguide.data_generation.generate_drafts \
+		--plan data/interim/prompt_plan_v1.jsonl \
+		--out_dir data/interim
+	@echo "✓ Drafts generated! Check data/interim for outputs."
+
+drafts-dry-run: ## Generate drafts in dry-run mode (no API calls)
+	@echo "Generating drafts in dry-run mode..."
+	@$(VENV_PYTHON) -m pocketguide.data_generation.generate_drafts \
+		--plan data/interim/prompt_plan_v1.jsonl \
+		--out_dir data/interim \
+		--dry_run
+	@echo "✓ Drafts generated (dry-run)! Check data/interim for outputs."
 
 train: ## Placeholder for model training (Milestone 2+)
 	@echo "⚠️  Model training not yet implemented (Milestone 2+)"

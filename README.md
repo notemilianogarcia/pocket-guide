@@ -117,27 +117,34 @@ Evaluated open-source student model on travel benchmarks pre-adaptation. Base re
 - Validation/parsing engine (strict/lenient modes)
 - Objective contract compliance measurement
 
-### Milestone 3: Synthetic Data Engine 🔄 (In Progress)
+### Milestone 3: Synthetic Data Engine ✅
 
 **Goal:** Teacher-driven pipeline generating high-quality travel instruction examples with proper structure, uncertainty handling, and verification guidance.
 
-**Completed (Lessons 3.1-3.2):**
+**Completed (Lessons 3.1-3.3):**
 
-*Data Pipeline:*
+*Data Pipeline (Lesson 3.1):*
 - Versioned prompt templates (4 payload types)
 - Dataset spec (120 examples, 7 categories, 3 difficulty levels)
 - Deterministic prompt planner CLI (`make data`)
 
-*Teacher Provider:*
+*Teacher Provider (Lesson 3.2):*
 - OpenRouter backend with cost-controlled fallback chain (2 free → 1 paid)
 - Rate limiting (15 RPM), exponential backoff, retry logic
 - Environment-based API keys (.env support)
 - Typed error handling (fail-fast vs retry)
 - Full observability (tokens, latency, fallback tracking)
+- Features: Dry-run mode, `fallback_to_paid` flag
 
-*Features:* Dry-run mode, `fallback_to_paid` flag, 156 tests passing
+*Draft Generation (Lesson 3.3):*
+- Batch generation CLI with schema-first validation
+- Append-only JSONL output with full provenance tracking
+- Dry-run mode, resume support, optional limit
+- Pass-rate statistics by type/category/difficulty/error
+- Reproducible hashing, config snapshots, run metadata
+- 169 tests passing (13 specific to draft generation)
 
-**Next:** Batch generation CLI (Lesson 3.3), validation, versioning
+**Docs:** [Lesson 3.1-3.2](docs/milestones/m3_l2_teacher_provider.md) | [Lesson 3.3](docs/milestones/m3_l3_draft_generation.md)
 
 ### Milestone 4: Data Quality & Splits (Planned)
 Deduplication, balancing, rejection filters, leakage prevention. Clean held-out benchmark split.
