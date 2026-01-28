@@ -107,59 +107,63 @@ pocket-guide/
 ## Milestones
 
 ### Milestone 0: Project Foundation ✅
-- Repository scaffolding with clean structure
-- Stub CLI with structured outputs
-- Evaluation framework and smoke tests
-- Configuration system and stable commands
+Established clean repository structure with stable commands, configuration files, and placeholders for all pipeline stages. The project is runnable end-to-end in stubbed form, ensuring consistent and reproducible structure for all future work.
 
-### Milestone 1: Base Model Integration ✅
-- Real model inference with Transformers
-- Comprehensive benchmark suites (72 examples across 4 categories)
-- Automated metrics (parsing, uncertainty detection, performance)
-- Report generation with failure analysis
-- Hardening for reproducibility and ergonomics
+### Milestone 1: Baseline Evaluation ✅
+Selected and evaluated a single open-source student model on travel-specific benchmarks before any adaptation. Produced base model report exposing hallucinations, structure failures, and uncertainty mishandling—establishing the reference point for all improvements.
 
-### Milestone 2: Schema Validation & Fine-tuning ✅
-**Lessons 2.1-2.4 Complete:**
-- ✅ Canonical envelope schema with versioned layout (v0)
-- ✅ Content payload schemas v1 (itinerary, checklist, decision_tree, procedure)
-- ✅ Parser + validator engine with strict/lenient JSON modes
-- ✅ Structured error handling with stable codes for metrics
-- ✅ Robust schema loading (importlib.resources) with caching
-- ✅ Integration into benchmark pipeline with contract validation
-- ✅ Comprehensive test coverage (133 tests pass)
+### Milestone 2: Behavioral Contracts ✅
+Defined valid response format through standard envelope schema (v0) and structured output schemas (v1: itinerary, checklist, procedure, decision_tree). Implemented validation and parsing logic with strict/lenient modes, enabling objective measurement of contract compliance in training and evaluation.
 
-**Next Steps:**
-- Base model evaluation and selection
-- LoRA/QLoRA fine-tuning pipeline
-- Training infrastructure with checkpointing
+### Milestone 3: Synthetic Data Engine 🔄 (In Progress)
 
-### Milestone 3: Synthetic Data Generation (In Progress)
-**Lessons 3.1-3.2 Complete:**
-- ✅ Teacher data pipeline scaffolding
-- ✅ Versioned prompt templates (v1) for 4 payload types
-- ✅ Dataset specification (120 examples across 7 categories)
-- ✅ Deterministic prompt planner CLI (`make data`)
-- ✅ Teacher provider interface with OpenRouter backend
-- ✅ Model fallback chain (2 free models → 1 paid fallback)
-- ✅ Rate limiting, retry logic, and cost control
-- ✅ Environment-based API key management (.env support)
-- ✅ Comprehensive test coverage (156 tests pass)
+Building a teacher-driven synthetic data pipeline to generate high-quality travel instruction examples. Focus is on consistent demonstrations of good decision-support behavior: proper structure, uncertainty handling, and verification guidance.
+
+**Current Status (Lessons 3.1-3.2 Complete):**
+
+**Data Pipeline Infrastructure:**
+- ✅ Versioned prompt templates (v1) for 4 payload types with strict JSON output requirements
+- ✅ Dataset specification defining 120 examples across 7 categories, 3 difficulty levels
+- ✅ Deterministic prompt planner CLI (`make data`) with seed-based reproducibility
+- ✅ Generated prompt plans with statistics and manifest tracking
+
+**Teacher Provider System:**
+- ✅ Abstract teacher interface (`TeacherClient`) with request/response dataclasses
+- ✅ OpenRouter backend client with OpenAI-compatible API
+- ✅ Cost-controlled model fallback chain: 2 free models → 1 paid fallback
+- ✅ Rate limiting (15 RPM), exponential backoff with jitter, retry logic
+- ✅ Environment-based API key management (.env with python-dotenv)
+- ✅ Typed error handling: fail-fast on auth/bad requests, retry on transient errors
+- ✅ Comprehensive observability: token usage, latency, fallback tracking
+
+**Technical Features:**
+- Dry-run mode for testing without API costs
+- `fallback_to_paid` flag to prevent accidental spending
+- Smoke test CLI for manual verification
+- 156 tests passing (23 new tests for teacher system)
 
 **Next Steps:**
-- 🔄 Batch generation CLI (Lesson 3.3)
+- 🔄 Batch generation CLI to generate all 120 examples (Lesson 3.3)
 - Response validation and quality checks
 - Dataset versioning and storage
 
-### Milestone 4: Advanced Features (Planned)
-- Multi-turn conversations
-- Context-aware responses
-- Enhanced safety and reliability
+### Milestone 4: Data Quality & Splits (Planned)
+Apply deduplication, balancing, rejection filters, and leakage prevention to synthetic dataset. Create clean held-out benchmark split ensuring proper separation between training and evaluation data.
 
-### Milestone 5: Production Deployment (Planned)
-- Optimized inference
-- Mobile/offline packaging
-- Performance benchmarking
+### Milestone 5: Model Adaptation (Planned)
+Fine-tune student model using LoRA/QLoRA on cleaned synthetic dataset. Track experiments, save artifacts, and document configuration choices in training report.
+
+### Milestone 6: Rigorous Evaluation (Planned)
+Compare base and adapted models using objective metrics (format compliance, uncertainty signaling, constraint satisfaction). Produce evaluation report with curated qualitative examples showing improvements and remaining failures.
+
+### Milestone 7: Evidence-Driven Iteration (Planned)
+Apply targeted fixes based on failure analysis (data augmentation, stricter quality controls). Retrain and re-evaluate to demonstrate evidence-based improvement methodology.
+
+### Milestone 8: Deployment Realism (Planned)
+Quantize adapted model and package for local, offline inference. Document memory usage, latency, and runtime constraints proving usability on limited hardware.
+
+### Milestone 9: Portfolio Finalization (Planned)
+Polish README, add demo, summarize results, document limitations and safety considerations. Complete the project as a hireable artifact demonstrating ML research thinking and engineering execution.
 
 ## Development
 
