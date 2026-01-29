@@ -96,7 +96,7 @@ pocket-guide/
 │   ├── benchmarks/v0/       # Benchmark suites (72 examples)
 │   ├── prompts/teacher/v1/  # Teacher prompt templates
 │   └── specs/               # Dataset specifications
-├── tests/                   # Test suite (156 tests)
+├── tests/                   # Test suite (361 tests)
 ├── runs/                    # Evaluation outputs
 ├── docs/                    # Documentation
 ├── .env.example             # Environment variable template
@@ -158,13 +158,73 @@ Evaluated open-source student model on travel benchmarks pre-adaptation. Base re
 - Output: dataset_v1.jsonl (accepted), dataset_v1_rejected.jsonl (debugging)
 - Full provenance: manifest with input hashes, stats with acceptance rates and gate metrics
 
-**Test Coverage:** 214 tests passing (29 new for refinement + quality gates)
+**Test Coverage:** 361 tests passing
 
 **Docs:** [Lesson 3.1-3.2](docs/milestones/m3_l2_teacher_provider.md) | [Lesson 3.3](docs/milestones/m3_l3_draft_generation.md) | [Lesson 3.4](docs/milestones/m3_l4_critique_pass.md) | [Lesson 3.5](docs/milestones/m3_l5_refinement.md)
 
-### Milestone 4: Data Quality & Splits (Planned)
-Deduplication, balancing, rejection filters, leakage prevention. Clean held-out benchmark split.
+### Milestone 4: Data Quality & Splits ✅ (Complete)
 
+**Goal:** Production-ready dataset through deduplication, quality filtering, balancing, and leakage-free splitting with held-out benchmarks.
+
+**Completed (Lessons 4.1-4.5):**
+
+*QA Pipeline Skeleton + Exact Deduplication (Lesson 4.1):*
+- SHA256 content fingerprinting for exact duplicate detection
+- Deterministic deduplication with stable ordering
+- Comprehensive QA reports (markdown + JSON)
+- Distribution tracking (before/after filtering)
+- Auditable rejection tracking with metadata
+
+*Near-Duplicate Detection (Lesson 4.2):*
+- Token shingles (k=3) with Jaccard similarity
+- Candidate bucketing for O(N) efficiency (not O(N²))
+- Configurable similarity threshold (default 0.85)
+- Near-duplicate groups tracked in reports
+- 22 new tests for shingling and similarity
+
+*Quality Filters (Lesson 4.3):*
+- **Length filter**: Rejects records outside 100-800 word range
+- **Vagueness filter**: Detects low-specificity content (vague phrases, lack of concrete actions/structure)
+- **Overclaim filter**: Flags unverified certainty on time-sensitive topics (visa/fees without verification)
+- Pure, deterministic functions (no ML dependencies)
+- Sequential application with short-circuit rejection
+- 36 new tests, all passing
+
+*Balancing by Category × Difficulty × Format (Lesson 4.4):*
+- Bucket-based downsampling to reduce dataset skew
+- Hard difficulty preservation (3x higher cap multiplier)
+- Deterministic sampling with seed control
+- Configurable cap multipliers (default: 1.5x normal, 3.0x hard)
+- Median-based target caps per bucket
+- Balancing stats in QA reports
+- 26 new tests for balancing logic
+
+*Clean Split + Held-Out Benchmark (Lesson 4.5):*
+- Union-Find (DSU) for efficient leakage group building
+- Exact + near-duplicate grouping (threshold 0.75)
+- Group-based splitting (entire groups stay together)
+- Train/val/test splits (80/10/10 default)
+- Held-out benchmark prompts (test split only, no responses)
+- Leakage validation (no groups/fingerprints span splits)
+- Manifest + stats with distributions and validation results
+- 25 new tests for splitting and validation
+
+**Pipeline Components:**
+- `qa_pipeline_v1.py`: Exact dedup → Near dedup → Quality filters → Balancing → Reports
+- `balancing.py`: Bucket computation, cap calculation, deterministic downsampling
+- `split_dataset_v1.py`: Leakage group building, split assignment, benchmark generation
+
+**Outputs:**
+- `data/processed/dataset_v1_clean.jsonl` (deduplicated, filtered, balanced)
+- `data/processed/dataset_v1_qa_report.md` (comprehensive QA report)
+- `data/processed/dataset_v1_qa_summary.json` (machine-readable stats)
+- `data/processed/splits/v1/{train,val,test}.jsonl` (leakage-free splits)
+- `data/processed/splits/v1/splits_manifest.json` (split metadata)
+- `data/processed/splits/v1/splits_stats.json` (distributions and validation)
+- `data/benchmarks/v1/prompts_test.jsonl` (held-out test prompts)
+- `data/benchmarks/v1/README.md` (benchmark documentation)
+
+**Test Coverage:** 361 tests passing (108 for M4 pipeline: 25 exact dedup + 22 near dedup + 36 quality filters + 26 balancing + 25 splitting)
 
 ### Milestone 5: Model Adaptation (Planned)
 LoRA/QLoRA fine-tuning on cleaned synthetic dataset. Experiment tracking and training report.
