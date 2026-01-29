@@ -123,7 +123,7 @@ Teacher-driven pipeline: prompt planning → OpenRouter generation (cost-optimiz
 ### Milestone 4: Data Quality & Splits ✅
 Exact + near-duplicate detection (shingles + Jaccard) → quality filters (length, vagueness, overclaim) → deterministic balancing (bucket-based, hard-case preservation) → leakage-free splitting (Union-Find) with held-out benchmarks. Outputs: clean dataset, train/val/test splits, benchmark prompts.
 
-### Milestone 5: Model Adaptation (Planned)
+### Milestone 5: Model Adaptation (In Progress)
 LoRA/QLoRA fine-tuning on cleaned synthetic dataset. Experiment tracking and training report.
 
 ### Milestone 6: Rigorous Evaluation (Planned)
