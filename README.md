@@ -94,6 +94,8 @@ pocket-guide/
 ├── configs/                 # Configuration files (eval, teacher)
 ├── data/
 │   ├── benchmarks/v0/       # Benchmark suites (72 examples)
+│   ├── benchmarks/v1/       # Held-out test benchmarks
+│   ├── processed/           # Cleaned dataset + splits (v1)
 │   ├── prompts/teacher/v1/  # Teacher prompt templates
 │   └── specs/               # Dataset specifications
 ├── tests/                   # Test suite (361 tests)
