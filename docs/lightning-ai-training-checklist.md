@@ -49,10 +49,12 @@ If using Option B, upload `data/processed/sft/v1/` to your chosen storage and no
 
 ---
 
-## 4. On Lightning: create a Run or Studio
+## 4. On Lightning: create a Run or Studio and pick a GPU
 
 - Go to [lightning.ai](https://lightning.ai) and create a **Run** (or **Studio**).
-- Choose a machine with a GPU (e.g. A100 or similar) and enough disk for the repo + data + model checkpoints.
+- **Recommended: L40S (48GB).** Best tradeoff for Llama-2-7B LoRA: no gradient checkpointing, full 2048 context, faster training (~30–50 min for ~57 samples), ~\$1–2 per run at 1.79 credits/hr. Use config: `configs/train_lora_l40s.yaml`.
+- **L4 (24GB):** Use `configs/train_lora.yaml` (gradient checkpointing + max_seq_len 1024). Cheaper per hour (0.48) but slower and shorter context.
+- **H200:** Overkill for 7B LoRA; only consider for much larger models.
 
 ---
 
@@ -147,7 +149,13 @@ python -m pocketguide.train.train --config configs/train_lora.yaml --dry_run
 
 ## 11. On Lightning: run training
 
-From the repo root:
+From the repo root. **If you chose L40S (recommended):**
+
+```bash
+python -m pocketguide.train.train --config configs/train_lora_l40s.yaml
+```
+
+**If you chose L4 (24GB):**
 
 ```bash
 python -m pocketguide.train.train --config configs/train_lora.yaml
@@ -178,6 +186,15 @@ pip install -e .
 ```
 
 Then run training again. The project pins `torchvision==0.20.1` in `pyproject.toml` so a fresh `pip install -e .` should keep them in sync.
+
+### CUDA OOM on L4 (24GB)
+
+Llama-2-7B with default settings can OOM on an L4. The config is set for **L4-friendly**:
+
+- **`runtime.gradient_checkpointing: true`** – trades compute for VRAM (recommended on 24GB).
+- **`data.max_seq_len: 1024`** – halves activation memory vs 2048.
+
+If you still OOM, try a 40GB+ GPU (e.g. A40, A100) or lower `max_seq_len` to 512. With a larger GPU you can set `gradient_checkpointing: false` and `max_seq_len: 2048` for faster training.
 
 ### Hugging Face login after restart
 
@@ -217,7 +234,7 @@ Then re-run training (or dry run) with the updated config. No need to re-run `pi
 | 1 | Local: `make split && make prepare-sft` |
 | 2 | Choose: data in repo (A) or data in cloud/mount (B) |
 | 3 | Push code (and data if A) |
-| 4 | Lightning: create Run/Studio with GPU |
+| 4 | Lightning: create Run/Studio; **pick L40S** and use `train_lora_l40s.yaml` |
 | 5 | Clone repo on Lightning |
 | 6 | Get SFT data on Lightning (if B) |
 | 7 | `pip install -e .` (no venv on Lightning Studio) |

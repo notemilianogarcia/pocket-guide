@@ -10,7 +10,7 @@ data:
   val_path: data/processed/splits/v1/val.jsonl
   train_sft_path: data/processed/sft/v1/train_sft.jsonl
   val_sft_path: data/processed/sft/v1/val_sft.jsonl
-  max_seq_len: 2048
+  max_seq_len: 1024   # 2048 for 40GB+ GPU; 1024 for L4 (24GB) with gradient_checkpointing
   # Optional: cap samples for debugging
   # max_train_samples: 100
   # max_val_samples: 20
@@ -39,6 +39,7 @@ lora:
 runtime:
   device: auto       # cuda | mps | cpu | auto
   precision: auto    # bf16 | fp16 | fp32 | auto
+  gradient_checkpointing: true   # saves VRAM (recommended for L4 / 24GB)
   dummy_model: false # true = tiny local model only (for tests, no download)
   num_workers: 2
   pin_memory: true

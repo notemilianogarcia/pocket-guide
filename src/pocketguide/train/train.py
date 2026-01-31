@@ -380,6 +380,9 @@ def run_training(
     else:
         model, tokenizer = _load_model_and_tokenizer(base_model_id, precision, device)
 
+    if runtime_cfg.get("gradient_checkpointing", False):
+        model.gradient_checkpointing_enable()
+
     if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
 

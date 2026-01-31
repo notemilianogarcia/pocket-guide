@@ -1,0 +1,47 @@
+# LoRA config for L40S / 48GB+ GPU: full context, no gradient checkpointing, faster training.
+# Use: python -m pocketguide.train.train --config configs/train_lora_l40s.yaml
+# L4 (24GB): use configs/train_lora.yaml instead.
+
+base_model_id: "meta-llama/Llama-2-7b-hf"
+# base_model_id: "Qwen/Qwen2-7B-Instruct"
+# base_model_id: "gpt2"
+
+data:
+  train_path: data/processed/splits/v1/train.jsonl
+  val_path: data/processed/splits/v1/val.jsonl
+  train_sft_path: data/processed/sft/v1/train_sft.jsonl
+  val_sft_path: data/processed/sft/v1/val_sft.jsonl
+  max_seq_len: 2048
+
+output:
+  runs_dir: runs/train
+
+training:
+  seed: 42
+  batch_size: 1
+  grad_accum_steps: 16
+  lr: 2.0e-4
+  num_epochs: 1
+  max_grad_norm: 1.0
+  warmup_steps: 0
+  eval_every_steps: 100
+  save_every_steps: 200
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: "auto"
+
+runtime:
+  device: auto
+  precision: auto
+  gradient_checkpointing: false
+  dummy_model: false
+  num_workers: 2
+  pin_memory: true
+
+logging:
+  log_every_steps: 10
+  enable_wandb: false
+  project: pocketguide
