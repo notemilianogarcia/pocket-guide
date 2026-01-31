@@ -166,6 +166,37 @@ Checkpoints and logs go to **`runs/train/`** (or the `output.runs_dir` from the 
 
 ---
 
+## Troubleshooting on Lightning
+
+### `RuntimeError: operator torchvision::nms does not exist`
+
+This is a **torch / torchvision version mismatch** in Lightning’s conda env. Fix by reinstalling a matching pair:
+
+```bash
+pip install torch==2.5.1 torchvision==0.20.1 --force-reinstall
+pip install -e .
+```
+
+Then run training again. The project pins `torchvision==0.20.1` in `pyproject.toml` so a fresh `pip install -e .` should keep them in sync.
+
+### Hugging Face login after restart
+
+If you restarted the terminal or switched machines, check whether you’re still logged in:
+
+```bash
+huggingface-cli whoami
+```
+
+If it doesn’t show your username, log in again:
+
+```bash
+huggingface-cli login
+```
+
+Tokens are cached in `~/.cache/huggingface/`; a new terminal on the same machine usually keeps the session.
+
+---
+
 ## Getting updates after you push (on Lightning)
 
 If you already cloned the repo on Lightning and then push changes from your machine (e.g. new config, new base model), pull on Lightning:
