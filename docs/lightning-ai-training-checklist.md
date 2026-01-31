@@ -77,23 +77,23 @@ Replace `YOUR_ORG` with your GitHub org or username.
 
 ---
 
-## 7. On Lightning: create environment and install
+## 7. On Lightning: install (no venv)
+
+**Lightning Studio allows only one environment (the default conda env).** Do **not** run `make env`; use the system/conda Python and install into it:
 
 ```bash
-make env
-source .venv/bin/activate
+cd pocket-guide
+pip install --upgrade pip
+pip install -e .
 ```
 
-Or without Make:
+For dev tools (pytest, ruff) as well:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
 pip install -e ".[dev]"
 ```
 
-This installs the project and dependencies (PyTorch, transformers, peft, accelerate, etc.) from `pyproject.toml`.
+This installs the project and dependencies (PyTorch, transformers, peft, accelerate, etc.) from `pyproject.toml` into the current environment.
 
 ---
 
@@ -141,13 +141,7 @@ Validate config and data without loading the full model:
 python -m pocketguide.train.train --config configs/train_lora.yaml --dry_run
 ```
 
-Or:
-
-```bash
-make train-dry-run
-```
-
-Fix any missing file or config errors before starting real training.
+(On Lightning, skip `make train-dry-run`—it uses the venv. Use the `python -m` command above.)
 
 ---
 
@@ -159,11 +153,7 @@ From the repo root:
 python -m pocketguide.train.train --config configs/train_lora.yaml
 ```
 
-Or:
-
-```bash
-make train-run
-```
+(On Lightning Studio, do **not** use `make train-run`—it expects a venv. Use the command above.)
 
 Checkpoints and logs go to **`runs/train/`** (or the `output.runs_dir` from the config). Training uses the SFT dataset built from `train_sft.jsonl` and `val_sft.jsonl`.
 
@@ -173,6 +163,19 @@ Checkpoints and logs go to **`runs/train/`** (or the `output.runs_dir` from the 
 
 - **Checkpoints** are under `runs/train/<run_id>/` (e.g. `checkpoint-200`).
 - Download the run directory or sync it to cloud storage so you can use the fine-tuned model for inference or evaluation.
+
+---
+
+## Getting updates after you push (on Lightning)
+
+If you already cloned the repo on Lightning and then push changes from your machine (e.g. new config, new base model), pull on Lightning:
+
+```bash
+cd ~/pocket-guide   # or wherever you cloned
+git pull origin main
+```
+
+Then re-run training (or dry run) with the updated config. No need to re-run `pip install -e .` unless you changed `pyproject.toml` or dependencies.
 
 ---
 
@@ -186,7 +189,7 @@ Checkpoints and logs go to **`runs/train/`** (or the `output.runs_dir` from the 
 | 4 | Lightning: create Run/Studio with GPU |
 | 5 | Clone repo on Lightning |
 | 6 | Get SFT data on Lightning (if B) |
-| 7 | `make env` and `source .venv/bin/activate` |
+| 7 | `pip install -e .` (no venv on Lightning Studio) |
 | 8 | `huggingface-cli login` (for Llama-2) |
 | 9 | Set `train_sft_path` / `val_sft_path` in config if data not in repo |
 | 10 | Optional: `make train-dry-run` |

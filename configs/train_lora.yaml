@@ -1,7 +1,9 @@
 # LoRA fine-tuning configuration (Milestone 5)
 # Paths are relative to project root. Use --dry_run to validate without loading the model.
 
-base_model_id: "meta-llama/Llama-2-7b-hf"
+# Open model (no Hugging Face approval needed). Switch to Llama once approved.
+base_model_id: "Qwen/Qwen2-7B-Instruct"
+# base_model_id: "meta-llama/Llama-2-7b-hf"   # requires Meta approval on HF
 # base_model_id: "gpt2"   # ~124M params, no login, fits on MPS/CPU
 
 data:
