@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketguide.local/schemas/v1/itinerary.payload.schema.json",
+  "title": "Itinerary Payload Schema v1",
+  "description": "Payload schema for itinerary-type responses",
+  "type": "object",
+  "required": [
+    "title",
+    "trip_days"
+  ],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Title of the itinerary"
+    },
+    "trip_days": {
+      "type": "array",
+      "minItems": 1,
+      "description": "List of days in the itinerary",
+      "items": {
+        "type": "object",
+        "required": [
+          "day",
+          "summary",
+          "items"
+        ],
+        "properties": {
+          "day": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Day number (1-indexed)"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Summary of the day's activities"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Activities or events for this day",
+            "items": {
+              "type": "object",
+              "required": [
+                "time_block",
+                "activity"
+              ],
+              "properties": {
+                "time_block": {
+                  "type": "string",
+                  "description": "Time as string (e.g., 'morning', '14:00-16:00')"
+                },
+                "activity": {
+                  "type": "string",
+                  "description": "Description of the activity"
+                },
+                "location": {
+                  "type": "string",
+                  "description": "Location of the activity"
+                },
+                "transport": {
+                  "type": "object",
+                  "description": "Transportation to this activity",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "walk",
+                        "transit",
+                        "train",
+                        "taxi",
+                        "rideshare",
+                        "flight",
+                        "ferry",
+                        "car"
+                      ]
+                    },
+                    "details": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "cost_estimate": {
+                  "type": "object",
+                  "description": "Cost estimate for this activity",
+                  "properties": {
+                    "currency": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "booking_needed": {
+                  "type": "boolean"
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "timezone": {
+      "type": "string",
+      "description": "Timezone for the trip (e.g., 'Asia/Tokyo')"
+    },
+    "total_budget": {
+      "type": "object",
+      "description": "Total budget for the trip",
+      "properties": {
+        "currency": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes about the itinerary"
+    },
+    "extra": {
+      "type": "object",
+      "description": "Extension field for future use",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

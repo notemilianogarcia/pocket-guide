@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketguide.local/schemas/v1/checklist.payload.schema.json",
+  "title": "Checklist Payload Schema v1",
+  "description": "Payload schema for checklist-type responses",
+  "type": "object",
+  "required": [
+    "title",
+    "groups"
+  ],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Title of the checklist"
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Grouped checklist items",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "items"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Group name (e.g., 'Before Departure', 'At Airport')"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Checklist items in this group",
+            "items": {
+              "type": "object",
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "description": "Checklist item text"
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "must",
+                    "should",
+                    "nice_to_have"
+                  ],
+                  "description": "Priority level"
+                },
+                "when": {
+                  "type": "string",
+                  "description": "When to do this (e.g., 'before departure', 'day of travel')"
+                },
+                "done": {
+                  "type": "boolean",
+                  "description": "Whether this item is completed"
+                },
+                "notes": {
+                  "type": "string",
+                  "description": "Additional notes"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "extra": {
+      "type": "object",
+      "description": "Extension field for future use",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketguide.local/schemas/v1/decision_tree.payload.schema.json",
+  "title": "Decision Tree Payload Schema v1",
+  "description": "Payload schema for decision_tree-type responses (graph-based)",
+  "type": "object",
+  "required": [
+    "title",
+    "nodes"
+  ],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Title of the decision tree"
+    },
+    "root_question": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Initial question/scenario (alternative to edges-based graph)"
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Nodes in the decision tree graph",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique node identifier"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "question",
+              "decision",
+              "outcome"
+            ],
+            "description": "Node type (graph format)"
+          },
+          "text": {
+            "type": "string",
+            "description": "Node content (graph format)"
+          },
+          "question": {
+            "type": "string",
+            "description": "Decision point (prompt format)"
+          },
+          "options": {
+            "type": "array",
+            "description": "Options: strings (graph format) or objects with choice/next_node_id/outcome (prompt format). Empty array allowed.",
+            "items": {
+              "anyOf": [
+                { "type": "string" },
+                {
+                  "type": "object",
+                  "properties": {
+                    "choice": { "type": "string" },
+                    "next_node_id": { "type": [ "string", "null" ] },
+                    "outcome": { "type": [ "string", "null" ] }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "action": {
+            "type": "string",
+            "description": "Recommended action (decision/outcome nodes)"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "edges": {
+      "type": "array",
+      "minItems": 0,
+      "description": "Edges connecting nodes (optional when using root_question + nodes)",
+      "items": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Source node ID"
+          },
+          "to": {
+            "type": "string",
+            "description": "Target node ID"
+          },
+          "condition": {
+            "type": "string",
+            "description": "Condition for this edge (e.g., 'Yes', 'Budget < $500')"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "extra": {
+      "type": "object",
+      "description": "Extension field for future use",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

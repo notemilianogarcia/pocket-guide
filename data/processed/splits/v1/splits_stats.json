@@ -1,0 +1,91 @@
+{
+  "summary": {
+    "total_records": 111,
+    "train_count": 57,
+    "val_count": 31,
+    "test_count": 23,
+    "benchmark_prompts": 23
+  },
+  "groups": {
+    "num_groups": 11,
+    "min_size": 1,
+    "median_size": 1,
+    "max_size": 32,
+    "singleton_groups": 6
+  },
+  "leakage_validation": {
+    "groups_spanning_splits": 0,
+    "fingerprints_spanning_splits": 0,
+    "leakage_free": true
+  },
+  "distributions": {
+    "train": {
+      "category": {
+        "accommodation": 9,
+        "entry_requirements": 10,
+        "itinerary_planning": 13,
+        "local_customs": 3,
+        "safety": 7,
+        "transport": 8,
+        "budgeting": 7
+      },
+      "difficulty": {
+        "easy": 24,
+        "medium": 15,
+        "hard": 18
+      },
+      "payload_type": {
+        "itinerary": 35,
+        "procedure": 22
+      }
+    },
+    "val": {
+      "category": {
+        "itinerary_planning": 6,
+        "local_customs": 2,
+        "transport": 7,
+        "entry_requirements": 8,
+        "budgeting": 3,
+        "safety": 2,
+        "accommodation": 3
+      },
+      "difficulty": {
+        "medium": 11,
+        "easy": 14,
+        "hard": 6
+      },
+      "payload_type": {
+        "decision_tree": 27,
+        "itinerary": 4
+      }
+    },
+    "test": {
+      "category": {
+        "budgeting": 6,
+        "safety": 3,
+        "transport": 7,
+        "itinerary_planning": 2,
+        "accommodation": 3,
+        "entry_requirements": 2
+      },
+      "difficulty": {
+        "hard": 8,
+        "medium": 7,
+        "easy": 8
+      },
+      "payload_type": {
+        "checklist": 21,
+        "itinerary": 2
+      }
+    }
+  },
+  "parameters": {
+    "seed": 42,
+    "train_frac": 0.8,
+    "val_frac": 0.1,
+    "test_frac": 0.1,
+    "sim_threshold": 0.75,
+    "shingle_size": 3,
+    "bucket_modulo": 1000
+  }
+}

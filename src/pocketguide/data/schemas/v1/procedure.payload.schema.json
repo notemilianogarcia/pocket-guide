@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketguide.local/schemas/v1/procedure.payload.schema.json",
+  "title": "Procedure Payload Schema v1",
+  "description": "Payload schema for procedure-type responses",
+  "type": "object",
+  "required": [
+    "title",
+    "steps"
+  ],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Title of the procedure"
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered steps in the procedure",
+      "items": {
+        "type": "object",
+        "required": [
+          "step",
+          "instruction"
+        ],
+        "properties": {
+          "step": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Step number (1-indexed)"
+          },
+          "instruction": {
+            "type": "string",
+            "description": "What to do in this step"
+          },
+          "why": {
+            "type": "string",
+            "description": "Why this step is necessary"
+          },
+          "warning": {
+            "type": "string",
+            "description": "Warnings or cautions for this step"
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Resources or prerequisites needed"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "estimated_time": {
+      "type": "string",
+      "description": "Estimated time to complete (e.g., '30 minutes', '2 hours')"
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Prerequisites before starting"
+    },
+    "postchecks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Verification steps after completion"
+    },
+    "extra": {
+      "type": "object",
+      "description": "Extension field for future use",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PocketGuide Response Envelope v0",
+  "description": "Canonical envelope for all travel assistant responses",
+  "type": "object",
+  "required": [
+    "summary",
+    "assumptions",
+    "uncertainty_notes",
+    "next_steps",
+    "verification_steps",
+    "payload_type",
+    "payload"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "High-level summary of the response"
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "List of assumptions made in generating this response (must be array of strings, not object)"
+    },
+    "uncertainty_notes": {
+      "type": "string",
+      "description": "Notes on areas of uncertainty or incomplete information"
+    },
+    "next_steps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Recommended next steps for the user"
+    },
+    "verification_steps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Steps to verify the information provided"
+    },
+    "payload_type": {
+      "type": "string",
+      "enum": [
+        "itinerary",
+        "checklist",
+        "decision_tree",
+        "procedure"
+      ],
+      "description": "Type of structured content in the payload"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Structured content matching payload_type (schema defined separately)"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional metadata (e.g., model, version, timestamps)"
+    }
+  },
+  "additionalProperties": false
+}
