@@ -32,9 +32,14 @@ from typing import Any, Dict, List, NamedTuple
 
 import yaml
 
-# Import teacher clients
-from pocketguide.teachers.router import TeacherRouterClient
+# Import teacher clients and request type
+from pocketguide.data_generation.generate_critiques import (
+    create_teacher_router,
+    load_teacher_config,
+)
+from pocketguide.teachers.base import TeacherRequest
 from pocketguide.teachers.openrouter import OpenRouterTeacherClient
+from pocketguide.teachers.router import TeacherRouterClient
 
 # Import parser/validator
 from pocketguide.eval.parsing import parse_and_validate
@@ -235,22 +240,86 @@ def build_refinement_prompt(
 
 def build_refinement_request(
     prompt: str,
-    generation_config: Dict[str, Any]
+    generation_config: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Build teacher request for refinement."""
+    """Build teacher request dict for refinement (legacy / dry_run)."""
     return {
         "messages": [
             {
                 "role": "system",
-                "content": "You are an expert travel advisor AI. Follow instructions exactly and output only valid JSON."
+                "content": "You are an expert travel advisor AI. Follow instructions exactly and output only valid JSON.",
             },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "user", "content": prompt},
         ],
-        "generation_config": generation_config
+        "generation_config": generation_config,
     }
+
+
+def _load_envelope_schema() -> Dict[str, Any]:
+    """Load response envelope schema from package data."""
+    import pocketguide
+
+    pkg_root = Path(pocketguide.__file__).parent
+    schema_path = pkg_root / "data" / "schemas" / "v0" / "response_envelope.schema.json"
+    with open(schema_path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _build_openrouter_response_format(schema: Dict[str, Any], name: str, strict: bool = True) -> Dict[str, Any]:
+    """Build OpenRouter response_format for structured outputs."""
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": name,
+            "strict": strict,
+            "schema": schema,
+        },
+    }
+
+
+def build_refinement_teacher_request(
+    prompt: str,
+    teacher_config: Dict[str, Any],
+    envelope_schema: Dict[str, Any] | None = None,
+) -> TeacherRequest:
+    """Build TeacherRequest for refinement pass (with optional structured outputs)."""
+    gen = teacher_config.get("generation", {})
+    structured_cfg = teacher_config.get("structured_outputs", {})
+
+    base_request = TeacherRequest(
+        messages=[
+            {
+                "role": "system",
+                "content": "You are an expert travel advisor AI. Follow instructions exactly and output only valid JSON.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+        temperature=gen.get("temperature", 0.2),
+        max_tokens=gen.get("max_tokens", 900),
+        top_p=gen.get("top_p", 0.9),
+        seed=gen.get("seed", 42),
+    )
+
+    if not structured_cfg.get("enabled") or not envelope_schema:
+        return base_request
+
+    strict = structured_cfg.get("strict", True)
+    require_params = structured_cfg.get("require_parameters", True)
+    response_format = _build_openrouter_response_format(
+        envelope_schema, "response_envelope_v0", strict=strict
+    )
+
+    return TeacherRequest(
+        messages=base_request.messages,
+        temperature=base_request.temperature,
+        max_tokens=base_request.max_tokens,
+        top_p=base_request.top_p,
+        seed=base_request.seed,
+        response_format=response_format,
+        require_parameters=require_params,
+        fallback_request=base_request,
+        metadata=base_request.metadata,
+    )
 
 
 def parse_refined_output(
@@ -314,6 +383,23 @@ def truncate_text(text: str, max_length: int = 20000) -> str:
     if len(text) <= max_length:
         return text
     return text[:max_length] + "\n... [truncated]"
+
+
+def _log_rejection_debug(
+    sample_id: str,
+    reason_codes: List[str],
+    contract: Dict[str, Any],
+    raw_text: str,
+    context: str,
+) -> None:
+    """Print rejection details to stderr for debugging."""
+    errors = contract.get("errors", [])
+    snippet = (raw_text or "")[:500]
+    print(
+        f"[DEBUG] dataset rejection | id={sample_id} | reason={reason_codes} | "
+        f"context={context} | errors={errors!r} | raw_prefix={repr(snippet)}",
+        file=sys.stderr,
+    )
 
 
 def build_accepted_record(
@@ -402,7 +488,11 @@ def build_rejected_record(
 
 
 def load_existing_ids(dataset_path: Path, rejected_path: Path) -> set[str]:
-    """Load IDs that have already been processed (accepted or rejected)."""
+    """Load IDs that have already been processed (accepted or refinement rejected).
+
+    Excludes rejections with reason 'missing_inputs' so that when more drafts/critiques
+    are added in a later batch, those plan IDs can be attempted (they now have joined samples).
+    """
     existing_ids = set()
     
     # Load accepted IDs
@@ -410,9 +500,11 @@ def load_existing_ids(dataset_path: Path, rejected_path: Path) -> set[str]:
         for record in load_jsonl(dataset_path):
             existing_ids.add(record["id"])
     
-    # Load rejected IDs
+    # Load rejected IDs (only refinement/gate rejections; not missing_inputs)
     if rejected_path.exists():
         for record in load_jsonl(rejected_path):
+            if record.get("reason") == "missing_inputs":
+                continue
             existing_ids.add(record["id"])
     
     return existing_ids
@@ -428,7 +520,8 @@ def generate_dataset(
     dry_run: bool,
     gating_mode: str,
     run_id: str | None,
-    teacher_config: Dict[str, Any]
+    teacher_config: Dict[str, Any],
+    debug: bool = False,
 ) -> Dict[str, Any]:
     """
     Main dataset generation pipeline.
@@ -459,18 +552,14 @@ def generate_dataset(
     
     # Load refinement template
     refine_template = load_prompt_template("refine")
-    
-    # Initialize teacher client
+
+    # Initialize teacher client (same router as critiques/drafts: 3 paid models + fallback)
     teacher = None
+    envelope_schema = None
     if not dry_run:
-        # Get model configuration
-        primary_model = teacher_config.get("primary_model", "meta-llama/llama-3.1-70b-instruct:free")
-        
-        teacher = TeacherRouterClient(
-            primary_client=OpenRouterTeacherClient(model=primary_model),
-            fallback_clients=[],
-            rate_limit_rpm=teacher_config.get("rate_limit_rpm", 30)
-        )
+        teacher = create_teacher_router(teacher_config, override_dry_run=False)
+        if teacher_config.get("structured_outputs", {}).get("enabled"):
+            envelope_schema = _load_envelope_schema()
     
     # Setup output paths
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -623,27 +712,32 @@ def generate_dataset(
                     "usage": {"prompt_tokens": 0, "completion_tokens": 0}
                 }
             else:
-                request = build_refinement_request(
-                    prompt=refinement_prompt,
-                    generation_config=teacher_config.get("generation_config", {})
+                teacher_request = build_refinement_teacher_request(
+                    refinement_prompt,
+                    teacher_config,
+                    envelope_schema=envelope_schema,
                 )
-                
                 try:
-                    response = teacher.generate(**request)
-                    raw_response = response["content"]
+                    response = teacher.generate(teacher_request)
+                    raw_response = response.text
                     teacher_metadata = {
-                        "provider": response.get("provider"),
-                        "selected_model": response.get("model"),
-                        "attempted_models": response.get("attempted_models", []),
-                        "request_id": response.get("request_id"),
-                        "timing": response.get("timing", {}),
-                        "usage": response.get("usage", {})
+                        "provider": response.provider,
+                        "selected_model": response.model,
+                        "chosen_model": response.raw.get("chosen_model"),
+                        "attempted_models": response.raw.get("attempted_models", []),
+                        "used_structured_outputs": response.raw.get("used_structured_outputs"),
+                        "structured_outputs_schema_name": response.raw.get(
+                            "structured_outputs_schema_name"
+                        ),
+                        "request_id": response.request_id,
+                        "timing": response.timing,
+                        "usage": response.usage,
                     }
-                    
+
                     # Track model usage
-                    model = response.get("model", "unknown")
+                    model = response.model
                     stats["teacher_model_usage"][model] = stats["teacher_model_usage"].get(model, 0) + 1
-                    
+
                 except Exception as e:
                     print(f"[ERROR] Teacher call failed for {sample.id}: {e}", file=sys.stderr)
                     rejection = build_rejected_record(
@@ -702,6 +796,10 @@ def generate_dataset(
                         raw_text=raw_response,
                         teacher_metadata=teacher_metadata
                     )
+                    if debug:
+                        _log_rejection_debug(
+                            sample.id, reason_codes, contract, raw_response, "gates"
+                        )
                     f_reject.write(json.dumps(rejected_record, ensure_ascii=False) + "\n")
                     stats["rejected"] += 1
             else:
@@ -716,6 +814,10 @@ def generate_dataset(
                     raw_text=raw_response,
                     teacher_metadata=teacher_metadata
                 )
+                if debug:
+                    _log_rejection_debug(
+                        sample.id, ["parse_failed"], contract, raw_response, "parse"
+                    )
                 f_reject.write(json.dumps(rejected_record, ensure_ascii=False) + "\n")
                 stats["rejected"] += 1
     
@@ -912,22 +1014,20 @@ def main():
         type=Path,
         help="Path to teacher config YAML (default: use sensible defaults)"
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Log per-sample rejection details (reason, contract errors, raw response prefix) to stderr",
+    )
     
     args = parser.parse_args()
-    
-    # Load teacher config
+
+    # Load teacher config (default: configs/teacher.yaml)
     if args.config and args.config.exists():
-        with open(args.config, "r") as f:
+        with open(args.config, "r", encoding="utf-8") as f:
             teacher_config = yaml.safe_load(f)
     else:
-        teacher_config = {
-            "rate_limit_rpm": 30,
-            "generation_config": {
-                "temperature": 0.3,
-                "max_tokens": 2048,
-                "top_p": 0.95
-            }
-        }
+        teacher_config = load_teacher_config(Path("configs/teacher.yaml"))
     
     # Run pipeline
     stats = generate_dataset(
@@ -940,7 +1040,8 @@ def main():
         dry_run=args.dry_run,
         gating_mode=args.gating_mode,
         run_id=args.run_id,
-        teacher_config=teacher_config
+        teacher_config=teacher_config,
+        debug=args.debug,
     )
     
     # Exit with appropriate code

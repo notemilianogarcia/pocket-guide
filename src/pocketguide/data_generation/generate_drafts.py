@@ -233,6 +233,7 @@ def generate_drafts(
     config: dict,
     limit: int = None,
     resume: bool = False,
+    debug: bool = False,
 ) -> dict:
     """Generate drafts from prompt plan.
 
@@ -313,14 +314,32 @@ def generate_drafts(
                 # Call teacher model once
                 teacher_response = teacher.generate(teacher_request)
 
-                # Parse and validate response
+                # Parse and validate response (try strict first, then lenient for JSON in markdown)
                 parse_result = parse_and_validate(
                     teacher_response.text,
                     strict_json=True,
                 )
+                if not parse_result.success:
+                    parse_result = parse_and_validate(
+                        teacher_response.text,
+                        strict_json=False,
+                    )
 
                 # Build draft record
                 draft = build_draft_record_from_parse(prompt_record, teacher_response, parse_result)
+
+                # Debug: log failure details for each non-passing draft
+                if debug and not draft["contract"].get("overall_ok"):
+                    err = draft["contract"].get("error", {})
+                    snippet = (draft.get("output_text") or "")[:500]
+                    logger.info(
+                        "[DEBUG] draft failed | id=%s | code=%s | message=%s | failed_at=%s | output_prefix=%s",
+                        draft["id"],
+                        err.get("code", "?"),
+                        (err.get("message") or "")[:200],
+                        err.get("failed_at"),
+                        repr(snippet),
+                    )
 
                 # Write to output
                 out_f.write(json.dumps(draft) + "\n")
@@ -528,6 +547,11 @@ def main(args=None):
         default=None,
         help="Path to teacher config YAML",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Log per-sample failure details (validation error + output prefix) for drafts that do not pass",
+    )
 
     parsed_args = parser.parse_args(args)
 
@@ -552,6 +576,7 @@ def main(args=None):
             config=teacher_config,
             limit=parsed_args.limit,
             resume=parsed_args.resume,
+            debug=parsed_args.debug,
         )
 
         logger.info("Draft generation successful")

@@ -1,5 +1,7 @@
 """Base interface for teacher model clients."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -14,6 +16,9 @@ class TeacherRequest:
         max_tokens: Maximum tokens to generate
         top_p: Nucleus sampling parameter (optional)
         seed: Random seed for determinism (optional, may be ignored by provider)
+        response_format: OpenRouter structured outputs (json_schema) when set
+        require_parameters: When True, request fails fast if provider cannot honor response_format
+        fallback_request: Optional request without structured outputs for retry when unsupported
         metadata: Additional metadata (prompt_id, template_version, etc.)
     """
 
@@ -22,6 +27,9 @@ class TeacherRequest:
     max_tokens: int = 900
     top_p: float | None = 0.9
     seed: int | None = None
+    response_format: dict[str, Any] | None = None
+    require_parameters: bool | None = None
+    fallback_request: TeacherRequest | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

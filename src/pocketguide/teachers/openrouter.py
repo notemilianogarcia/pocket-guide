@@ -14,6 +14,7 @@ from pocketguide.teachers.errors import (
     TeacherBadRequestError,
     TeacherRateLimitError,
     TeacherTransientError,
+    TeacherUnsupportedParameterError,
 )
 from pocketguide.utils.rate_limiter import RateLimiter
 
@@ -124,6 +125,13 @@ class OpenRouterTeacherClient(TeacherClient):
         if request.seed is not None:
             payload["seed"] = request.seed
 
+        schema_name: str | None = None
+        if request.response_format is not None:
+            payload["response_format"] = request.response_format
+            schema_name = request.response_format.get("json_schema", {}).get("name")
+        if request.require_parameters is not None:
+            payload["require_parameters"] = request.require_parameters
+
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
 
         if self.app_name:
@@ -148,6 +156,21 @@ class OpenRouterTeacherClient(TeacherClient):
                     )
 
                 if response.status_code == 400:
+                    text_lower = response.text.lower()
+                    if any(
+                        k in text_lower
+                        for k in (
+                            "unsupported",
+                            "response_format",
+                            "require_parameters",
+                            "structured",
+                            "json_schema",
+                            "parameter",
+                        )
+                    ):
+                        raise TeacherUnsupportedParameterError(
+                            f"Structured outputs or parameter unsupported (400): {response.text[:300]}"
+                        )
                     raise TeacherBadRequestError(
                         f"Bad request (status {response.status_code}): {response.text[:200]}"
                     )
@@ -162,6 +185,20 @@ class OpenRouterTeacherClient(TeacherClient):
                         raise TeacherRateLimitError(
                             f"Rate limit exceeded after {self.max_retries} retries"
                         )
+
+                if response.status_code == 404:
+                    # Model not found – don't retry; router will try next model
+                    raise TeacherTransientError(
+                        f"Model not found (404): {self.model}. "
+                        "Check https://openrouter.ai/api/v1/models for current IDs."
+                    )
+
+                if response.status_code == 402:
+                    # Payment required – don't retry; router will try next model
+                    raise TeacherTransientError(
+                        f"Payment required (402) for model {self.model}. "
+                        "Add credits or use a different model."
+                    )
 
                 if response.status_code >= 500:
                     # Server error - retry with backoff
@@ -194,7 +231,13 @@ class OpenRouterTeacherClient(TeacherClient):
                         "total_tokens": data["usage"].get("total_tokens"),
                     }
 
-                # Build response
+                # Build response with structured-outputs metadata
+                raw_meta = {
+                    "status_code": response.status_code,
+                    "model": data.get("model"),
+                    "used_structured_outputs": request.response_format is not None,
+                    "structured_outputs_schema_name": schema_name,
+                }
                 return TeacherResponse(
                     text=text,
                     model=data.get("model", self.model),
@@ -202,7 +245,7 @@ class OpenRouterTeacherClient(TeacherClient):
                     request_id=data.get("id"),
                     usage=usage,
                     timing={"latency_s": latency_s},
-                    raw={"status_code": response.status_code, "model": data.get("model")},
+                    raw=raw_meta,
                 )
 
             except httpx.TimeoutException as e:
@@ -261,6 +304,9 @@ class OpenRouterTeacherClient(TeacherClient):
             Dry-run teacher response
         """
         # Redact API key in preview
+        schema_name = None
+        if request.response_format is not None:
+            schema_name = request.response_format.get("json_schema", {}).get("name")
         request_preview = {
             "model": self.model,
             "messages": [
@@ -278,7 +324,12 @@ class OpenRouterTeacherClient(TeacherClient):
             request_id="dry_run",
             usage=None,
             timing={"latency_s": 0.0},
-            raw={"dry_run": True, "request_preview": request_preview},
+            raw={
+                "dry_run": True,
+                "request_preview": request_preview,
+                "used_structured_outputs": request.response_format is not None,
+                "structured_outputs_schema_name": schema_name,
+            },
         )
 
     def __del__(self):

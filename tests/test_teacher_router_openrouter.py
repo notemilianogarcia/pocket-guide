@@ -9,6 +9,7 @@ from pocketguide.teachers.errors import (
     TeacherBadRequestError,
     TeacherRateLimitError,
     TeacherTransientError,
+    TeacherUnsupportedParameterError,
 )
 from pocketguide.teachers.openrouter import OpenRouterTeacherClient
 from pocketguide.teachers.router import TeacherRouterClient
@@ -120,6 +121,88 @@ class TestOpenRouterClient:
 
         # Should only call once (no retries)
         assert mock_post.call_count == 1
+
+    @patch("httpx.Client.post")
+    def test_400_unsupported_parameter_raises_unsupported_error(self, mock_post):
+        """Test 400 with unsupported/response_format in body raises TeacherUnsupportedParameterError."""
+        mock_response = Mock()
+        mock_response.status_code = 400
+        mock_response.text = "Unsupported parameter: response_format"
+        mock_post.return_value = mock_response
+
+        client = OpenRouterTeacherClient(
+            model="qwen/qwen-2.5-72b-instruct",
+            dry_run=False,
+            api_key="test-key",
+        )
+
+        request = TeacherRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            temperature=0.2,
+            max_tokens=100,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "test_schema", "strict": True, "schema": {}},
+            },
+            require_parameters=True,
+        )
+
+        with pytest.raises(TeacherUnsupportedParameterError):
+            client.generate(request)
+
+        assert mock_post.call_count == 1
+        # Request body must contain response_format and require_parameters
+        call_kwargs = mock_post.call_args[1]
+        payload = call_kwargs["json"]
+        assert "response_format" in payload
+        assert payload["response_format"]["json_schema"]["name"] == "test_schema"
+        assert payload.get("require_parameters") is True
+
+    @patch("httpx.Client.post")
+    def test_request_with_structured_outputs_includes_response_format(self, mock_post):
+        """When structured outputs enabled, request body contains response_format and require_parameters."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "test-id",
+            "model": "qwen/qwen-2.5-72b-instruct",
+            "choices": [{"message": {"content": "{}"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        mock_post.return_value = mock_response
+
+        client = OpenRouterTeacherClient(
+            model="qwen/qwen-2.5-72b-instruct",
+            dry_run=False,
+            api_key="test-key",
+        )
+
+        schema = {"type": "object", "properties": {"verdict": {"type": "string"}}}
+        request = TeacherRequest(
+            messages=[{"role": "user", "content": "Critique this"}],
+            temperature=0.2,
+            max_tokens=500,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "critique_v1",
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+            require_parameters=True,
+        )
+
+        response = client.generate(request)
+
+        assert response.text == "{}"
+        assert response.raw.get("used_structured_outputs") is True
+        assert response.raw.get("structured_outputs_schema_name") == "critique_v1"
+        call_kwargs = mock_post.call_args[1]
+        payload = call_kwargs["json"]
+        assert payload["response_format"]["type"] == "json_schema"
+        assert payload["response_format"]["json_schema"]["name"] == "critique_v1"
+        assert payload["require_parameters"] is True
 
     @patch("httpx.Client.post")
     @patch("time.sleep")
@@ -359,6 +442,59 @@ class TestTeacherRouter:
 
         # Should only try once (no fallback)
         assert backend.generate.call_count == 1
+
+    def test_unsupported_parameter_retries_with_fallback_request(self):
+        """When TeacherUnsupportedParameterError and fallback_request set, retry without structured outputs."""
+        base_request = TeacherRequest(
+            messages=[{"role": "user", "content": "Critique this"}],
+            temperature=0.2,
+            max_tokens=500,
+        )
+        request_with_schema = TeacherRequest(
+            messages=base_request.messages,
+            temperature=base_request.temperature,
+            max_tokens=base_request.max_tokens,
+            top_p=base_request.top_p,
+            seed=base_request.seed,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "critique_v1", "strict": True, "schema": {}},
+            },
+            require_parameters=True,
+            fallback_request=base_request,
+        )
+
+        def side_effect(req):
+            if getattr(req, "response_format", None) is not None:
+                raise TeacherUnsupportedParameterError("Structured outputs unsupported")
+            return TeacherResponse(
+                text='{"verdict": "pass"}',
+                model="qwen/qwen-2.5-72b-instruct",
+                provider="openrouter",
+                request_id="test-id",
+                usage=None,
+                timing={"latency_s": 0.5},
+                raw={},
+            )
+
+        backend = Mock()
+        backend.model = "qwen/qwen-2.5-72b-instruct"
+        backend.generate.side_effect = side_effect
+
+        router = TeacherRouterClient(
+            backend=backend,
+            models=["qwen/qwen-2.5-72b-instruct", "meta-llama/llama-3.1-70b-instruct"],
+            fallback_to_paid=True,
+        )
+
+        response = router.generate(request_with_schema)
+
+        assert response.text == '{"verdict": "pass"}'
+        assert response.raw["selected_model"] == "qwen/qwen-2.5-72b-instruct"
+        assert response.raw["used_structured_outputs"] is False
+        assert response.raw["structured_outputs_schema_name"] is None
+        # First call with schema (unsupported), second call with fallback_request (success)
+        assert backend.generate.call_count == 2
 
     def test_fallback_to_paid_false_stops_at_free(self):
         """Test router stops before paid models when fallback_to_paid=False."""

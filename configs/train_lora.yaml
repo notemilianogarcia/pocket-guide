@@ -1,0 +1,49 @@
+# LoRA fine-tuning configuration (Milestone 5)
+# Paths are relative to project root. Use --dry_run to validate without loading the model.
+
+base_model_id: "meta-llama/Llama-2-7b-hf"
+# base_model_id: "gpt2"   # ~124M params, no login, fits on MPS/CPU
+
+data:
+  train_path: data/processed/splits/v1/train.jsonl
+  val_path: data/processed/splits/v1/val.jsonl
+  train_sft_path: data/processed/sft/v1/train_sft.jsonl
+  val_sft_path: data/processed/sft/v1/val_sft.jsonl
+  max_seq_len: 2048
+  # Optional: cap samples for debugging
+  # max_train_samples: 100
+  # max_val_samples: 20
+
+output:
+  runs_dir: runs/train
+
+training:
+  seed: 42
+  batch_size: 1
+  grad_accum_steps: 16
+  lr: 2.0e-4
+  num_epochs: 1
+  max_grad_norm: 1.0
+  warmup_steps: 0
+  eval_every_steps: 100
+  save_every_steps: 200
+  # max_steps: null  # optional override
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: "auto"  # or list e.g. ["q_proj", "v_proj"]
+
+runtime:
+  device: auto       # cuda | mps | cpu | auto
+  precision: auto    # bf16 | fp16 | fp32 | auto
+  dummy_model: false # true = tiny local model only (for tests, no download)
+  num_workers: 2
+  pin_memory: true
+
+logging:
+  log_every_steps: 10
+  enable_wandb: false
+  project: pocketguide
+  # run_name: null  # optional; defaults to run_id

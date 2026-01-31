@@ -1,34 +1,40 @@
 # Teacher configuration for data generation
-# Controls which models to use, generation settings, and safety limits
+# Uses OpenRouter with 3 paid models and optional Structured Outputs (JSON Schema)
 
-# Model fallback chain (order matters)
-# Try free models first, then paid models if fallback_to_paid=true
+# Provider and model fallback chain (order matters)
+provider: openrouter
 models:
-  - meta-llama/llama-3.3-70b-instruct:free
-  - deepseek/deepseek-chat-v3.1:free
-  - openai/gpt-4o
+  - x-ai/grok-4.1-fast
+  - qwen/qwen-2.5-72b-instruct
+  - meta-llama/llama-3.3-70b-instruct
 
-# Generation parameters
+# Structured Outputs (OpenRouter JSON Schema enforcement)
+structured_outputs:
+  enabled: true
+  strict: true
+  require_parameters: true
+
+# Generation parameters (max_tokens must allow full JSON for drafts/refinement; 900 truncates long payloads)
 generation:
-  temperature: 0.2  # Low temperature for more deterministic/focused outputs
-  top_p: 0.9        # Nucleus sampling
-  max_tokens: 900   # Maximum response length
-  seed: 42          # Random seed for reproducibility
+  temperature: 0.2
+  top_p: 0.9
+  max_tokens: 4096
+  seed: 42
 
 # Runtime behavior
 runtime:
-  dry_run: true          # If true, skip actual API calls (for testing)
-  timeout_s: 60          # Request timeout in seconds
-  fallback_to_paid: true # If true, allow fallback to paid models; if false, stop at last free model
+  dry_run: false
+  timeout_s: 60
+  fallback_to_paid: true
 
-# Rate limiting and retry
+# Rate limiting and retry (bounded, deterministic)
 rate_limit:
-  rpm: 15                  # Requests per minute
-  max_retries_per_model: 6 # Maximum retries per model before fallback
-  backoff_base_s: 1.0      # Base backoff time in seconds
-  backoff_max_s: 30.0      # Maximum backoff time in seconds
+  rpm: 15
+  jitter_ms: 0
+  max_retries_per_model: 1
+max_total_attempts: 3
 
 # Safety limits
 safety:
-  max_requests: 500         # Maximum total requests per run
-  max_total_tokens: 2000000 # Maximum total tokens across all requests
+  max_requests: 500
+  max_total_tokens: 2000000

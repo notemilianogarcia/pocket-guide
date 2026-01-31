@@ -94,32 +94,38 @@ def load_teacher_config(config_path: Path = None) -> dict:
 
 def create_teacher_router(config: dict, override_dry_run: bool = False) -> TeacherRouterClient:
     """Create TeacherRouterClient from config.
-    
+
     Args:
         config: Teacher configuration dict
         override_dry_run: Force dry_run mode
-        
+
     Returns:
         TeacherRouterClient instance
     """
     models = config.get("models", [])
     runtime = config.get("runtime", {})
     rate_limit = config.get("rate_limit", {})
-    
+
     dry_run = override_dry_run or runtime.get("dry_run", False)
-    
+    initial_model = models[0] if models else ""
+
     backend = OpenRouterTeacherClient(
+        model=initial_model,
         rpm=rate_limit.get("rpm", 15),
         dry_run=dry_run,
         timeout_s=runtime.get("timeout_s", 60),
+        max_retries=rate_limit.get("max_retries_per_model", 1),
+        backoff_base_s=rate_limit.get("backoff_base_s", 1.0),
+        backoff_max_s=rate_limit.get("backoff_max_s", 30.0),
     )
-    
+
     router = TeacherRouterClient(
         backend=backend,
         models=models,
         fallback_to_paid=runtime.get("fallback_to_paid", True),
+        max_retries_per_model=rate_limit.get("max_retries_per_model", 1),
     )
-    
+
     return router
 
 
@@ -165,19 +171,42 @@ def build_critique_prompt(draft: dict, template: str) -> str:
     )
 
 
-def build_critique_request(critique_prompt: str, config: dict) -> TeacherRequest:
+def build_openrouter_response_format(
+    schema: dict, name: str, strict: bool = True
+) -> dict:
+    """Build OpenRouter response_format for structured outputs (JSON Schema)."""
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": name,
+            "strict": strict,
+            "schema": schema,
+        },
+    }
+
+
+def build_critique_request(
+    critique_prompt: str,
+    config: dict,
+    *,
+    structured_outputs_config: dict | None = None,
+    critique_schema: dict | None = None,
+) -> TeacherRequest:
     """Build TeacherRequest for critique generation.
-    
+
     Args:
         critique_prompt: Formatted critique prompt
         config: Teacher configuration
-        
+        structured_outputs_config: Optional structured_outputs section (enabled, strict, require_parameters)
+        critique_schema: Optional JSON schema for critique (used when structured_outputs enabled)
+
     Returns:
         TeacherRequest instance
     """
     gen_config = config.get("generation", {})
-    
-    return TeacherRequest(
+    seed_val = gen_config.get("seed") or config.get("seed", 42)
+
+    base_request = TeacherRequest(
         messages=[
             {
                 "role": "system",
@@ -191,8 +220,33 @@ def build_critique_request(critique_prompt: str, config: dict) -> TeacherRequest
         temperature=gen_config.get("temperature", 0.2),
         top_p=gen_config.get("top_p", 0.9),
         max_tokens=gen_config.get("max_tokens", 1500),
-        seed=config.get("seed", 42),
+        seed=seed_val,
     )
+
+    if not structured_outputs_config or not structured_outputs_config.get("enabled"):
+        return base_request
+
+    if not critique_schema:
+        return base_request
+
+    strict = structured_outputs_config.get("strict", True)
+    require_params = structured_outputs_config.get("require_parameters", True)
+    response_format = build_openrouter_response_format(
+        critique_schema, "critique_v1", strict=strict
+    )
+
+    request_with_schema = TeacherRequest(
+        messages=base_request.messages,
+        temperature=base_request.temperature,
+        max_tokens=base_request.max_tokens,
+        top_p=base_request.top_p,
+        seed=base_request.seed,
+        response_format=response_format,
+        require_parameters=require_params,
+        fallback_request=base_request,
+        metadata=base_request.metadata,
+    )
+    return request_with_schema
 
 
 def parse_critique_json(text: str) -> tuple[bool, dict | None, str | None]:
@@ -284,7 +338,12 @@ def build_critique_record(
         "teacher": {
             "provider": teacher_response.provider,
             "selected_model": teacher_response.raw.get("selected_model"),
+            "chosen_model": teacher_response.raw.get("chosen_model"),
             "attempted_models": teacher_response.raw.get("attempted_models", []),
+            "used_structured_outputs": teacher_response.raw.get("used_structured_outputs"),
+            "structured_outputs_schema_name": teacher_response.raw.get(
+                "structured_outputs_schema_name"
+            ),
             "request_id": teacher_response.request_id,
             "timing": teacher_response.timing,
             "usage": teacher_response.usage,
@@ -386,10 +445,16 @@ def generate_critiques(
             try:
                 # Build critique prompt
                 critique_prompt = build_critique_prompt(draft, template)
-                
-                # Build request
-                request = build_critique_request(critique_prompt, config)
-                
+
+                # Build request (with optional structured outputs from config)
+                structured_cfg = config.get("structured_outputs", {})
+                request = build_critique_request(
+                    critique_prompt,
+                    config,
+                    structured_outputs_config=structured_cfg if structured_cfg.get("enabled") else None,
+                    critique_schema=schema if structured_cfg.get("enabled") else None,
+                )
+
                 # Call teacher
                 teacher_response = teacher.generate(request)
                 

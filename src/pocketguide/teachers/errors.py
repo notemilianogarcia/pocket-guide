@@ -29,3 +29,9 @@ class TeacherBadRequestError(TeacherError):
     """Bad request error (400, client-side issue)."""
 
     pass
+
+
+class TeacherUnsupportedParameterError(TeacherTransientError):
+    """Provider/model does not support a parameter (e.g. response_format / structured outputs)."""
+
+    pass

@@ -42,6 +42,12 @@ OVERCONFIDENCE_PHRASES = {
     "100%", "for sure", "without exception"
 }
 
+# "always" in these contexts is acceptable (urging verification), not overconfident
+ALLOWED_ALWAYS_CONTEXTS = (
+    "always verify", "always check", "always confirm", "always consult",
+    "always refer", "always observe", "always see ",
+)
+
 
 def check_contract_ok(
     envelope_ok: bool,
@@ -186,8 +192,16 @@ def check_overconfidence_guard(
     # Check for overconfidence phrases
     found_phrases = []
     for phrase in OVERCONFIDENCE_PHRASES:
-        if phrase.lower() in text_lower:
-            found_phrases.append(phrase)
+        if phrase.lower() not in text_lower:
+            continue
+        # "always" in "always verify/check/confirm" etc. is acceptable (caveat), not overconfident
+        if phrase == "always":
+            masked = text_lower
+            for allowed in ALLOWED_ALWAYS_CONTEXTS:
+                masked = masked.replace(allowed, " " * len(allowed))
+            if "always" not in masked:
+                continue
+        found_phrases.append(phrase)
     
     if found_phrases:
         return GateResult(

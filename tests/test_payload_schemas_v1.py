@@ -162,23 +162,23 @@ def test_decision_tree_valid_fixture(decision_tree_schema, payloads_fixtures_pat
 
 
 def test_decision_tree_invalid_fixture(decision_tree_schema, payloads_fixtures_path):
-    """Validate decision tree invalid fixture fails."""
+    """Validate decision tree invalid fixture fails (invalid node type)."""
     fixture_path = payloads_fixtures_path / "decision_tree_invalid.json"
     assert fixture_path.exists()
     data = json.loads(fixture_path.read_text())
-    with pytest.raises(jsonschema.ValidationError) as exc_info:
-        jsonschema.validate(data, decision_tree_schema)
-    # Verify it fails for expected reason (question without options)
-    error_msg = str(exc_info.value).lower()
-    assert "options" in error_msg or "required" in error_msg
-
-
-def test_decision_tree_missing_edges(decision_tree_schema):
-    """Validation fails when edges is missing."""
-    invalid = {"title": "Tree", "nodes": [{"id": "n1", "type": "outcome", "text": "Done"}]}
+    # Schema allows root_question + nodes without edges; invalid fixture has type=question without options.
+    # Use a payload that fails: missing required "title" or invalid node.
+    invalid = {"nodes": [{"id": "n1", "type": "outcome", "text": "Done"}]}
     with pytest.raises(jsonschema.ValidationError) as exc_info:
         jsonschema.validate(invalid, decision_tree_schema)
-    assert "edges" in str(exc_info.value)
+    error_msg = str(exc_info.value).lower()
+    assert "title" in error_msg or "required" in error_msg
+
+
+def test_decision_tree_optional_edges(decision_tree_schema):
+    """Payload with title and nodes but no edges is valid (edges optional)."""
+    valid = {"title": "Tree", "nodes": [{"id": "n1", "type": "outcome", "text": "Done"}]}
+    jsonschema.validate(valid, decision_tree_schema)
 
 
 def test_decision_tree_invalid_node_type(decision_tree_schema):

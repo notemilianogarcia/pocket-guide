@@ -762,6 +762,7 @@ def main():
     print(f"  Train: {split_counts['train']} records")
     print(f"  Val: {split_counts['val']} records")
     print(f"  Test: {split_counts['test']} records")
+    print("  (Target 80/10/10 applies to record count; actual counts can differ because whole leakage groups are assigned, not individual records.)")
     
     # Validate splits
     print("\nValidating splits for leakage...")

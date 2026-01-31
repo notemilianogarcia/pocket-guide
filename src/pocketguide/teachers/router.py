@@ -7,6 +7,7 @@ from pocketguide.teachers.errors import (
     TeacherBadRequestError,
     TeacherRateLimitError,
     TeacherTransientError,
+    TeacherUnsupportedParameterError,
 )
 
 
@@ -76,9 +77,38 @@ class TeacherRouterClient(TeacherClient):
 
                 response.raw["attempted_models"] = attempted_models
                 response.raw["selected_model"] = model
+                response.raw["chosen_model"] = model
                 response.raw["fallback_occurred"] = len(attempted_models) > 1
 
                 return response
+
+            except TeacherUnsupportedParameterError as e:
+                # Retry same model once without structured outputs if fallback_request set
+                if request.fallback_request is not None:
+                    try:
+                        response = self.backend.generate(request.fallback_request)
+                        if response.raw is None:
+                            response.raw = {}
+                        response.raw["attempted_models"] = attempted_models
+                        response.raw["selected_model"] = model
+                        response.raw["chosen_model"] = model
+                        response.raw["fallback_occurred"] = len(attempted_models) > 1
+                        response.raw["used_structured_outputs"] = False
+                        response.raw["structured_outputs_schema_name"] = None
+                        return response
+                    except Exception:
+                        last_error = e
+                        if model == self.models[-1]:
+                            raise TeacherTransientError(
+                                f"All models exhausted. Attempted: {attempted_models}. Last error: {e}"
+                            ) from e
+                        continue
+                last_error = e
+                if model == self.models[-1]:
+                    raise TeacherTransientError(
+                        f"All models exhausted. Attempted: {attempted_models}. Last error: {e}"
+                    ) from e
+                continue
 
             except (TeacherAuthError, TeacherBadRequestError):
                 # Fail fast - no retries or fallback

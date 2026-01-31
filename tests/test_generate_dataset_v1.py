@@ -218,7 +218,15 @@ class TestQualityGates:
         assert not result.passed
         assert result.reason_code == "overconfident_time_sensitive"
         assert "definitely" in result.details["found_phrases"]
-    
+
+    def test_overconfidence_guard_passes_always_verify_style(self):
+        """Should pass when 'always' appears only in caveat phrases like 'always verify'."""
+        result = check_overconfidence_guard(
+            full_response_text="Fees and schedules change. Always verify real-time data from official sources.",
+            is_time_sensitive=True
+        )
+        assert result.passed
+
     def test_apply_all_gates_integration(self):
         """Should apply all gates and return results."""
         gates = apply_all_gates(
@@ -479,42 +487,48 @@ class TestGenerateDataset:
             assert stats["attempted"] > 0
             assert stats["accepted"] + stats["rejected"] == stats["attempted"]
     
-    @patch("pocketguide.data_generation.generate_dataset_v1.TeacherRouterClient")
-    def test_generate_dataset_with_mocked_teacher(self, mock_router_class):
-        """Should generate dataset with mocked teacher."""
+    @patch("pocketguide.data_generation.generate_dataset_v1.create_teacher_router")
+    def test_generate_dataset_with_mocked_teacher(self, mock_create_router):
+        """Should generate dataset with mocked teacher (TeacherRequest/TeacherResponse API)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
-            
-            # Setup mock teacher
-            mock_teacher = MagicMock()
-            mock_teacher.generate.return_value = {
-                "content": json.dumps({
-                    "summary": "Visa typically required for most visitors",
-                    "assumptions": ["Tourist purpose"],
-                    "uncertainty_notes": "Requirements may change",
-                    "next_steps": ["Check embassy website"],
-                    "verification_steps": ["Visit embassy.gov"],
-                    "payload_type": "checklist",
-                    "payload": {
-                        "title": "Visa Checklist",
-                        "groups": [{
-                            "name": "Documents",
-                            "items": [{
-                                "text": "Check visa requirements",
-                                "priority": "must"
-                            }]
+
+            refined_json = json.dumps({
+                "summary": "Visa typically required for most visitors",
+                "assumptions": ["Tourist purpose"],
+                "uncertainty_notes": "Requirements may change",
+                "next_steps": ["Check embassy website"],
+                "verification_steps": ["Visit embassy.gov"],
+                "payload_type": "checklist",
+                "payload": {
+                    "title": "Visa Checklist",
+                    "groups": [{
+                        "name": "Documents",
+                        "items": [{
+                            "text": "Check visa requirements",
+                            "priority": "must"
                         }]
-                    }
-                }),
-                "provider": "openrouter",
-                "model": "test-model",
+                    }]
+                }
+            })
+            mock_response = MagicMock()
+            mock_response.text = refined_json
+            mock_response.model = "test-model"
+            mock_response.provider = "openrouter"
+            mock_response.request_id = "mock_123"
+            mock_response.timing = {"latency_s": 0.1}
+            mock_response.usage = {"prompt_tokens": 50, "completion_tokens": 30}
+            mock_response.raw = {
+                "chosen_model": "test-model",
                 "attempted_models": ["test-model"],
-                "request_id": "mock_123",
-                "timing": {"total_time_ms": 100},
-                "usage": {"prompt_tokens": 50, "completion_tokens": 30}
+                "used_structured_outputs": False,
+                "structured_outputs_schema_name": None,
             }
-            mock_router_class.return_value = mock_teacher
-            
+
+            mock_teacher = MagicMock()
+            mock_teacher.generate.return_value = mock_response
+            mock_create_router.return_value = mock_teacher
+
             # Create input files
             plan_path = tmpdir / "plans.jsonl"
             drafts_path = tmpdir / "drafts.jsonl"
@@ -543,7 +557,7 @@ class TestGenerateDataset:
                     "rewrite_instructions": ["Add verification steps", "Soften certainty"]
                 }) + "\n")
             
-            # Run generation
+            # Run generation (teacher_config must have models for create_teacher_router when not patched; we patch create_teacher_router so minimal config is ok)
             stats = generate_dataset(
                 plan_path=plan_path,
                 drafts_path=drafts_path,
@@ -554,11 +568,14 @@ class TestGenerateDataset:
                 dry_run=False,
                 gating_mode="lenient",
                 run_id="test_run",
-                teacher_config={"rate_limit_rpm": 30}
+                teacher_config={"models": ["test-model"], "generation": {}, "runtime": {}, "rate_limit": {}},
             )
-            
-            # Verify teacher was called
+
+            # Verify teacher was called with a TeacherRequest (single positional arg)
             mock_teacher.generate.assert_called_once()
+            call_arg = mock_teacher.generate.call_args[0][0]
+            assert hasattr(call_arg, "messages")
+            assert call_arg.messages[0]["role"] == "system"
             
             # Verify outputs
             dataset = load_jsonl(out_dir / "dataset_v1.jsonl")
