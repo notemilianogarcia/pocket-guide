@@ -121,6 +121,12 @@ def generate_one(
     # Tokenize input
     inputs = tokenizer(prompt, return_tensors="pt")
     input_ids = inputs["input_ids"].to(model.device)
+    # Explicit attention_mask when pad_token_id == eos_token_id (avoids Transformers warning)
+    attention_mask = inputs.get("attention_mask")
+    if attention_mask is None:
+        attention_mask = torch.ones_like(input_ids, dtype=torch.long, device=input_ids.device)
+    else:
+        attention_mask = attention_mask.to(model.device)
     prompt_tokens = input_ids.shape[1]
 
     # Start timing
@@ -130,6 +136,7 @@ def generate_one(
     with torch.no_grad():
         outputs = model.generate(
             input_ids,
+            attention_mask=attention_mask,
             max_new_tokens=gen_spec.max_new_tokens,
             do_sample=gen_spec.do_sample,
             temperature=gen_spec.temperature if gen_spec.do_sample else 1.0,
@@ -137,6 +144,7 @@ def generate_one(
             repetition_penalty=gen_spec.repetition_penalty,
             pad_token_id=tokenizer.pad_token_id,
             return_dict_in_generate=True,
+            return_legacy_cache=True,
         )
 
     # End timing

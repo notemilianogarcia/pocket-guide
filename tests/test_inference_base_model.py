@@ -66,6 +66,7 @@ class MockModel:
     def generate(
         self,
         input_ids,
+        attention_mask=None,
         max_new_tokens=256,
         do_sample=False,
         temperature=1.0,
@@ -73,6 +74,8 @@ class MockModel:
         repetition_penalty=1.0,
         pad_token_id=0,
         return_dict_in_generate=True,
+        return_legacy_cache=True,
+        **kwargs,
     ):
         """Mock generation."""
         # Generate deterministic output based on input
