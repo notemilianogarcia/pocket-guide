@@ -256,6 +256,14 @@ train-dry-run: ## Validate config and datasets without loading model
 	@$(VENV_PYTHON) -m pocketguide.train.train --config configs/train_lora.yaml --dry_run
 	@echo "✓ Dry run OK."
 
+run-samples: ## Run base + finetuned sample generation (Lesson 5.4). Requires RUN_DIR=runs/train/<run_id>
+	@test -n "$(RUN_DIR)" || (echo "Usage: make run-samples RUN_DIR=runs/train/<run_id>" && exit 1)
+	@prompts="$${PROMPTS:-eval/suites/fixed20_v1.jsonl}"; \
+	$(VENV_PYTHON) -m pocketguide.train.run_samples \
+		--run_dir "$(RUN_DIR)" \
+		--prompts "$$prompts"
+	@echo "✓ Samples and comparison_metrics written under $(RUN_DIR)/samples/"
+
 run: ## Run CLI inference with default prompt
 	@echo "Running PocketGuide CLI stub..."
 	@echo ""

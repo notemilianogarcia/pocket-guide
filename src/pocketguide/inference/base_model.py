@@ -148,14 +148,18 @@ def generate_one(
     total_tokens = generated_ids.shape[0]
     completion_tokens = total_tokens - prompt_tokens
 
-    # Decode text (skip special tokens for cleaner output)
+    # Decode full sequence and completion-only (for validation of model output)
     generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+    completion_text = tokenizer.decode(
+        generated_ids[prompt_tokens:], skip_special_tokens=True
+    )
 
     # Calculate tokens per second
     tokens_per_s = completion_tokens / latency_s if latency_s > 0 else 0.0
 
     return {
         "text": generated_text,
+        "completion_text": completion_text,
         "usage": {
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
