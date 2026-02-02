@@ -108,21 +108,39 @@ pocket-guide/
 
 ## Milestones
 
-- **0** Project foundation: repo structure, configs, stubbed pipeline. Base for reproducible eval and data pipelines.
-- **1** Baseline evaluation: travel benchmark suites (JSONL), metrics, human-readable report generator. Eval runs produce outputs and provenance under `runs/eval/`.
-- **2** Behavioral contracts: envelope + payload JSON schemas (itinerary, checklist, procedure, etc.).
-  Strict/lenient parsing and validation wired into eval and CLI; structured error envelopes on parse failure.
-- **3** Synthetic data engine: prompt planning from specs → teacher (OpenRouter) for drafts/critiques → gating → `dataset_v1.jsonl`.
-  Makefile pipeline for sample, batch, and full runs; optional QA and resume.
-- **4** Data quality & splits: near-duplicate detection, quality filters/gates, leakage-free train/val/test splits and SFT prep.
-  Fixed eval prompts exported to suites; data layout ready for Lightning.
-- **5** Model adaptation: LoRA fine-tuning (PEFT) on Lightning.ai.
-  Config-driven training, run provenance, adapter export for inference and quantization.
-- **6** Local runtime & quantization: HF→GGUF conversion + quantization (Q4/Q5). Unified CLI (`--runtime hf|local`), llama.cpp backend, local eval (latency + schema compliance).
-  See [docs/local_runtime_guide.md](docs/local_runtime_guide.md).
-- **7** Iteration cycle v2 (targeted data + training fix). **Goal:** Demonstrate evaluation-driven iteration (the key research signal). **Scope:** Pick top 1–2 failure modes from M6; apply targeted interventions (dataset augmentation for those failure classes, stricter QC rules, small hyperparam tweaks); retrain adapted model v2; re-evaluate on the same benchmark.
-  **Outputs:** `data/processed/dataset_v2_*`, `runs/train/*v2*`, `docs/evaluation_report_v2.md`. **DoD:** Demonstrable improvement on targeted failure modes; explanation linking intervention → metric delta.
-- **8–10** Further iteration, deployment realism, final polish (planned).
+Phased build: evaluation and contracts first, then synthetic data and training, then iteration and local deployment.
+
+---
+
+### Completed
+
+| # | Milestone | What we built |
+|---|-----------|----------------|
+| **0** | **Scaffolding & conventions** | Repo layout (`src/`, `configs/`, `scripts/`, `docs/`, `tests/`, `runs/`), `pyproject.toml`, Makefile (`env`, `lint`, `test`, `data`, `train`, `eval`, `run`), minimal CLI and eval harness → outputs under `runs/eval/`. |
+| **1** | **Baseline evaluation (v0)** | Travel benchmark suites (JSONL), metrics (parse, schema, latency), human-readable report. Establishes how good the base model is before adaptation. |
+| **2** | **Output contracts & schemas** | Canonical JSON schemas (itinerary, checklist, procedure, decision_tree) + response envelope (summary, assumptions, next_steps, verification_steps). Strict/lenient parsing, validation in eval and CLI, structured error envelopes on failure. |
+| **3** | **Teacher data generation (v1)** | Prompt planning from specs → teacher (OpenRouter) for drafts → critiques → gating → `dataset_v1.jsonl`. Makefile pipeline (sample, batch, full), optional QA and resume. |
+| **4** | **Data QA & splits** | Near-duplicate detection, quality filters/gates, leakage-free train/val/test splits, SFT prep. Fixed eval prompts exported to suites; data ready for Lightning. |
+| **5** | **Fine-tuning (v1)** | LoRA (PEFT) on Lightning.ai. Config-driven training, run provenance, adapter export for inference and quantization. |
+| **6** | **Local runtime & quantization** | HF→GGUF conversion + Q4/Q5 quantization. Unified CLI (hf and local runtimes), llama.cpp backend, local eval (latency + schema compliance). See [docs/local_runtime_guide.md](docs/local_runtime_guide.md). |
+
+---
+
+### Next
+
+| # | Milestone | Goal | Scope |
+|---|-----------|------|--------|
+| **7** | **Iteration cycle (v2)** | Demonstrate evaluation-driven iteration (the key research signal). | Pick top 1–2 failure modes from M6 → targeted interventions (dataset augmentation, stricter QC, hyperparam tweaks) → retrain v2 → re-evaluate. **Artifacts:** `data/processed/dataset_v2_*`, `runs/train/*v2*`, `docs/evaluation_report_v2.md`. **DoD:** Measurable improvement on targeted failures + explanation linking intervention → metric delta. |
+
+---
+
+### Planned
+
+| # | Milestone | Focus |
+|---|-----------|--------|
+| **8** | Quantization & local packaging | GGUF export, one-command local run, inference guide (RAM, latency, example prompts). |
+| **9** | Portfolio finalization | README architecture, results summary, demo GIF, limitations & safety, final report. |
+| **10** | Further iteration | Deployment realism, polish. |
 
 ## Development
 
