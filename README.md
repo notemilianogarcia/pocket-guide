@@ -108,37 +108,14 @@ pocket-guide/
 
 ## Milestones
 
-### Milestone 0: Project Foundation ✅
-Clean repository structure with stable commands, configuration files, and end-to-end pipeline placeholders. Runnable in stubbed form.
-
-### Milestone 1: Baseline Evaluation ✅
-Evaluated open-source student model on travel benchmarks pre-adaptation. Base report establishes reference point for all improvements.
-
-### Milestone 2: Behavioral Contracts ✅
-- Standard envelope schema (v0) + structured output schemas (v1)
-- Validation/parsing engine (strict/lenient modes)
-- Objective contract compliance measurement
-
-### Milestone 3: Synthetic Data Engine ✅
-Teacher-driven pipeline: prompt planning → OpenRouter generation (cost-optimized, fallback chain) → critique-based quality gating → schema-validated refinement. Produces dataset_v1.jsonl with full provenance tracking.
-
-### Milestone 4: Data Quality & Splits ✅
-Exact + near-duplicate detection (shingles + Jaccard) → quality filters (length, vagueness, overclaim) → deterministic balancing (bucket-based, hard-case preservation) → leakage-free splitting (Union-Find) with held-out benchmarks. Outputs: clean dataset, train/val/test splits, benchmark prompts.
-
-### Milestone 5: Model Adaptation (In Progress)
-LoRA/QLoRA fine-tuning on cleaned synthetic dataset. Experiment tracking and training report.
-
-### Milestone 6: Rigorous Evaluation (Planned)
-Base vs adapted model comparison. Objective metrics + curated qualitative examples.
-
-### Milestone 7: Evidence-Driven Iteration (Planned)
-Targeted fixes based on failure analysis. Retrain and re-evaluate.
-
-### Milestone 8: Deployment Realism (Planned)
-Quantize model, package for local/offline inference. Document resource constraints.
-
-### Milestone 9: Portfolio Finalization (Planned)
-Polish README, demo, results summary, limitations, safety considerations.
+- **0** Project foundation: repo structure, configs, stubbed pipeline.
+- **1** Baseline evaluation: travel benchmarks, base report.
+- **2** Behavioral contracts: envelope + payload schemas, parsing/validation.
+- **3** Synthetic data engine: prompt planning → OpenRouter → critique gating → dataset_v1.jsonl.
+- **4** Data quality & splits: near-dup detection, filters, leakage-free splits.
+- **5** Model adaptation: LoRA fine-tuning, training report.
+- **6** Local runtime & quantization: llama.cpp stub, GGUF pipeline, unified CLI, local eval. See [docs/local_runtime_guide.md](docs/local_runtime_guide.md).
+- **7–10** Rigorous evaluation, evidence-driven iteration, deployment realism, final polish (planned).
 
 ## Development
 
