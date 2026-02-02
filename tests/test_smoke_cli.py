@@ -1,59 +1,53 @@
-"""Smoke tests for CLI inference."""
+"""Smoke tests for CLI inference (unified --runtime hf | local)."""
+
+import json
+
+from pocketguide.inference.cli import _hf_stub_envelope, _build_error_envelope
+from pocketguide.eval.parsing import ParseResult, ParseValidationError, parse_and_validate
 
 
-from pocketguide.inference.cli import format_response, generate_stub_response
+def test_hf_stub_envelope_returns_required_keys():
+    """Stub envelope (HF runtime) contains required envelope keys."""
+    envelope = _hf_stub_envelope("What are visa requirements for Japan?")
+    assert isinstance(envelope, dict)
+    assert "summary" in envelope
+    assert "assumptions" in envelope
+    assert "next_steps" in envelope
+    assert "payload_type" in envelope
+    assert "payload" in envelope
+    assert envelope["payload_type"] == "procedure"
 
 
-def test_generate_stub_response_returns_required_keys():
-    """Test that stub response contains all required keys."""
-    prompt = "What are visa requirements for Japan?"
-    response = generate_stub_response(prompt)
-
-    assert isinstance(response, dict)
-    assert "summary" in response
-    assert "assumptions" in response
-    assert "next_steps" in response
-
-
-def test_generate_stub_response_is_deterministic():
-    """Test that same prompt generates same response."""
+def test_hf_stub_envelope_is_deterministic():
+    """Same prompt produces same stub envelope."""
     prompt = "Budget for Thailand trip"
-    response1 = generate_stub_response(prompt)
-    response2 = generate_stub_response(prompt)
+    e1 = _hf_stub_envelope(prompt)
+    e2 = _hf_stub_envelope(prompt)
+    assert e1 == e2
 
-    assert response1 == response2
 
-
-def test_format_response_includes_required_sections():
-    """Test that formatted response includes all required section headers."""
-    response = {
-        "summary": "Test summary",
-        "assumptions": "Test assumptions",
-        "next_steps": "Test next steps",
-    }
-
-    formatted = format_response(response)
-
-    assert "Summary:" in formatted
-    assert "Assumptions:" in formatted
-    assert "Next steps:" in formatted
-    assert "Test summary" in formatted
-    assert "Test assumptions" in formatted
-    assert "Test next steps" in formatted
+def test_hf_stub_envelope_passes_validation():
+    """HF stub envelope passes parse_and_validate."""
+    envelope = _hf_stub_envelope("test")
+    raw = json.dumps(envelope, indent=2)
+    result = parse_and_validate(raw, strict_json=True)
+    assert result.success
+    assert result.data is not None
 
 
 def test_format_response_preserves_order():
-    """Test that sections appear in the correct order."""
-    response = {
-        "summary": "SUMMARY_CONTENT",
-        "assumptions": "ASSUMPTIONS_CONTENT",
-        "next_steps": "NEXT_STEPS_CONTENT",
-    }
-
-    formatted = format_response(response)
-
-    summary_idx = formatted.find("Summary:")
-    assumptions_idx = formatted.find("Assumptions:")
-    next_steps_idx = formatted.find("Next steps:")
-
-    assert summary_idx < assumptions_idx < next_steps_idx
+    """Error envelope build produces valid procedure payload with ordered steps."""
+    err = ParseValidationError(
+        code="TEST",
+        error_type="json_parse",
+        message="Test message",
+        guidance=["Tip one", "Tip two"],
+    )
+    result = ParseResult(success=False, error=err)
+    envelope = _build_error_envelope(result, raw_excerpt="excerpt")
+    assert "summary" in envelope and envelope["summary"] == "Parsing/validation failed"
+    assert envelope["payload_type"] == "procedure"
+    steps = envelope["payload"]["steps"]
+    assert len(steps) >= 1
+    step_instructions = [s["instruction"] for s in steps]
+    assert any("Test message" in i for i in step_instructions)

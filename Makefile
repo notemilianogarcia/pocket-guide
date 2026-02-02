@@ -1,4 +1,4 @@
-.PHONY: env lint test data drafts drafts-sample drafts-dry-run drafts-batch critiques critiques-sample critiques-dry-run critiques-batch dataset dataset-sample dataset-dry-run dataset-batch pipeline-batch split prepare-sft data-full pipeline-sample debug-sample regate-overconfident clean-data train train-run train-dry-run run eval clean help
+.PHONY: env lint test data drafts drafts-sample drafts-dry-run drafts-batch critiques critiques-sample critiques-dry-run critiques-batch dataset dataset-sample dataset-dry-run dataset-batch pipeline-batch split prepare-sft data-full pipeline-sample debug-sample regate-overconfident clean-data train train-run train-dry-run run-samples recompute-sample-metrics report run run_local quantize quantize-dry-run eval eval-local clean help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -264,10 +264,50 @@ run-samples: ## Run base + finetuned sample generation (Lesson 5.4). Requires RU
 		--prompts "$$prompts"
 	@echo "✓ Samples and comparison_metrics written under $(RUN_DIR)/samples/"
 
+recompute-sample-metrics: ## Re-parse sample JSONL and recompute comparison_metrics (no model). Requires RUN_DIR=runs/train/<run_id>
+	@test -n "$(RUN_DIR)" || (echo "Usage: make recompute-sample-metrics RUN_DIR=runs/train/<run_id>" && exit 1)
+	@$(VENV_PYTHON) -m pocketguide.train.run_samples --run_dir "$(RUN_DIR)" --recompute_metrics
+	@echo "✓ comparison_metrics and sample JSONL updated under $(RUN_DIR)/samples/"
+
+report: ## Generate training report v1 (Lesson 5.5). Requires RUN_DIR=runs/train/<run_id>
+	@test -n "$(RUN_DIR)" || (echo "Usage: make report RUN_DIR=runs/train/<run_id>" && exit 1)
+	@$(VENV_PYTHON) -m pocketguide.train.generate_report \
+		--run_dir "$(RUN_DIR)" \
+		--out docs/training_report_v1.md
+	@echo "✓ Report written to docs/training_report_v1.md"
+
 run: ## Run CLI inference with default prompt
 	@echo "Running PocketGuide CLI stub..."
 	@echo ""
 	@$(VENV_PYTHON) -m pocketguide.inference.cli --prompt "What documents do I need to travel from the US to Canada?"
+
+run_local: ## Run local runtime via unified CLI (stub mode; configs/runtime_local.yaml). Optional: PROMPT="..."
+	@prompt="$${PROMPT:-plan a 2-day itinerary for Montreal}"; \
+	$(VENV_PYTHON) -m pocketguide.inference.cli \
+		--runtime local \
+		--runtime_config configs/runtime_local.yaml \
+		--prompt "$$prompt"
+
+# Quantization (Lesson 6.2). Set TRAIN_RUN=<train_run_id>; optional: LLAMACPP_DIR, BASE_MODEL_ID
+TRAIN_RUN ?=
+quantize: ## GGUF quantization from trained adapter. Requires TRAIN_RUN=<train_run_id>, LLAMACPP_DIR (or config)
+	@test -n "$(TRAIN_RUN)" || (echo "Usage: make quantize TRAIN_RUN=<train_run_id>" && exit 1)
+	@$(VENV_PYTHON) -m pocketguide.quant.quantize_gguf \
+		--config configs/quantize_gguf.yaml \
+		--adapter_dir runs/train/$(TRAIN_RUN)/adapter \
+		$(if $(BASE_MODEL_ID),--base_model_id $(BASE_MODEL_ID),) \
+		$(if $(LLAMACPP_DIR),--llamacpp_dir $(LLAMACPP_DIR),)
+	@echo "✓ Quantization complete. Check runs/quant/ for outputs."
+
+quantize-dry-run: ## Dry run: plan commands and write run dir + meta (no model/llama.cpp). Requires TRAIN_RUN and LLAMACPP_DIR.
+	@test -n "$(TRAIN_RUN)" || (echo "Usage: make quantize-dry-run TRAIN_RUN=<train_run_id> LLAMACPP_DIR=/path/to/llama.cpp" && exit 1)
+	@test -n "$(LLAMACPP_DIR)" || (echo "Set LLAMACPP_DIR for dry run (e.g. a temp dir)." && exit 1)
+	@$(VENV_PYTHON) -m pocketguide.quant.quantize_gguf \
+		--config configs/quantize_gguf.yaml \
+		--adapter_dir runs/train/$(TRAIN_RUN)/adapter \
+		--llamacpp_dir "$(LLAMACPP_DIR)" \
+		--dry_run
+	@echo "✓ Dry run complete."
 
 eval: ## Run evaluation benchmark on v0 benchmark suites
 	@echo "Running evaluation benchmark on v0 benchmark suites..."
@@ -275,6 +315,13 @@ eval: ## Run evaluation benchmark on v0 benchmark suites
 	@$(VENV_PYTHON) -m pocketguide.eval.benchmark --config configs/eval.yaml --suite_dir data/benchmarks/v0
 	@echo ""
 	@echo "✓ Evaluation complete! Check runs/eval/ for results."
+
+eval-local: ## Local eval: latency + schema compliance over fixed20 + local_regression (Lesson 6.4)
+	@$(VENV_PYTHON) -m pocketguide.eval.local_eval \
+		--runtime_config configs/runtime_local.yaml \
+		--suites eval/suites/fixed20_v1.jsonl,eval/suites/local_regression_v1.jsonl \
+		--out_dir runs/eval
+	@echo "✓ Local eval complete. Check runs/eval/<run_id>/local_metrics.json"
 
 clean: ## Remove generated files and caches
 	@echo "Cleaning up..."

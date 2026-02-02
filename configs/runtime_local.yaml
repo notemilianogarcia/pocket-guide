@@ -1,0 +1,19 @@
+# Local runtime configuration (Milestone 6 — llama.cpp / GGUF)
+# Used by: python -m pocketguide.inference.local_cli --config configs/runtime_local.yaml
+
+runtime:
+  backend: llamacpp
+  stub: true   # when true, do not call llama.cpp; return deterministic stub output
+
+model:
+  gguf_path: models/gguf/PLACEHOLDER_MODEL.gguf
+  context_length: 4096
+
+generation:
+  temperature: 0.2
+  top_p: 0.9
+  max_tokens: 512
+
+execution:
+  llamacpp_bin: null   # optional path to llama.cpp binary
+  extra_args: []       # optional list for future flags

@@ -87,17 +87,18 @@ def _build_sample_record(
     tokens_generated: int | None,
 ) -> dict[str, Any]:
     """Build one sample output record for JSONL."""
-    parse_success = parse_result.success
-    schema_valid = parse_success
-    parsed_json = parse_result.data if parse_success else None
+    # parse_success = we got valid JSON (strict or lenient); schema_valid = full envelope+payload pass
+    parsed_json = getattr(parse_result, "data", None)
+    parse_success = parsed_json is not None
+    schema_valid = parse_result.success
     error_code = None
     missing_fields: list[str] = []
 
-    if not parse_success and parse_result.error:
+    if not parse_result.success and parse_result.error:
         error_code = getattr(parse_result.error, "code", None) or str(
             parse_result.error
         )
-    elif parse_success and parsed_json:
+    if parsed_json:
         ok, missing = check_required_fields(parsed_json, ENVELOPE_REQUIRED_FIELDS)
         if not ok:
             missing_fields = missing
@@ -275,7 +276,9 @@ def run_samples(
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     base_records = []
-    for row in prompts:
+    n_prompts = len(prompts)
+    for i, row in enumerate(prompts, 1):
+        print(f"Base {i}/{n_prompts} {row.get('id', '')}", flush=True)
         prompt_text = row["prompt"]
         result = _run_inference_one(
             base_model, tokenizer, prompt_text, gen_spec, gen_seed
@@ -314,7 +317,8 @@ def run_samples(
     model.eval()
 
     finetuned_records = []
-    for row in prompts:
+    for i, row in enumerate(prompts, 1):
+        print(f"Finetuned {i}/{n_prompts} {row.get('id', '')}", flush=True)
         prompt_text = row["prompt"]
         result = _run_inference_one(model, tokenizer, prompt_text, gen_spec, gen_seed)
         raw_output = result.get("completion_text", result.get("text", ""))
@@ -356,6 +360,71 @@ def run_samples(
     print(f"Wrote {metrics_path}")
 
 
+def recompute_sample_metrics(run_dir: Path) -> None:
+    """Re-parse raw_text_output from existing sample JSONL and recompute parse_success/schema_valid and comparison_metrics. No model load."""
+    samples_dir = run_dir / "samples"
+    base_path = samples_dir / "base_outputs.jsonl"
+    finetuned_path = samples_dir / "finetuned_outputs.jsonl"
+    if not base_path.exists() or not finetuned_path.exists():
+        raise FileNotFoundError(
+            f"Missing {base_path} or {finetuned_path}. Run sample generation first."
+        )
+
+    def _load_jsonl(p: Path) -> list[dict[str, Any]]:
+        records = []
+        with open(p, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                records.append(json.loads(line))
+        return records
+
+    def _reparse_and_rebuild(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out = []
+        for r in records:
+            raw = r.get("raw_text_output", "")
+            parse_result = parse_and_validate(raw, strict_json=False)
+            prompt_row = {
+                "id": r.get("prompt_id"),
+                "prompt": r.get("prompt", ""),
+                "payload_type": r.get("payload_type"),
+            }
+            rec = _build_sample_record(
+                prompt_row,
+                raw,
+                parse_result,
+                latency_ms=r.get("latency_ms") or 0,
+                tokens_generated=r.get("tokens_generated"),
+            )
+            out.append(rec)
+        return out
+
+    base_records = _reparse_and_rebuild(_load_jsonl(base_path))
+    finetuned_records = _reparse_and_rebuild(_load_jsonl(finetuned_path))
+
+    with open(base_path, "w", encoding="utf-8") as f:
+        for rec in base_records:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    with open(finetuned_path, "w", encoding="utf-8") as f:
+        for rec in finetuned_records:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    base_metrics = _compute_aggregate_metrics(base_records)
+    finetuned_metrics = _compute_aggregate_metrics(finetuned_records)
+    delta = _compute_delta(base_metrics, finetuned_metrics)
+    comparison = {
+        "num_prompts": len(base_records),
+        "base": base_metrics,
+        "finetuned": finetuned_metrics,
+        "delta": delta,
+    }
+    metrics_path = samples_dir / "comparison_metrics.json"
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(comparison, f, indent=2)
+    print(f"Recomputed {base_path.name}, {finetuned_path.name}, {metrics_path.name}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run base and fine-tuned sample generation (Lesson 5.4)."
@@ -369,8 +438,8 @@ def main() -> None:
     parser.add_argument(
         "--prompts",
         type=str,
-        required=True,
-        help="Path to fixed prompts JSONL (e.g. eval/suites/fixed20_v1.jsonl)",
+        default=None,
+        help="Path to fixed prompts JSONL (e.g. eval/suites/fixed20_v1.jsonl); required unless --recompute_metrics",
     )
     parser.add_argument(
         "--project_root",
@@ -384,15 +453,31 @@ def main() -> None:
         default=42,
         help="Random seed for generation (default: 42)",
     )
+    parser.add_argument(
+        "--recompute_metrics",
+        action="store_true",
+        help="Re-parse existing sample JSONL and recompute metrics (no model load)",
+    )
     args = parser.parse_args()
 
     run_dir = Path(args.run_dir).resolve()
-    prompts_path = Path(args.prompts).resolve()
-    project_root = Path(args.project_root or ".").resolve()
-
     if not run_dir.is_dir():
         print(f"Run directory not found: {run_dir}", file=sys.stderr)
         sys.exit(1)
+
+    if args.recompute_metrics:
+        try:
+            recompute_sample_metrics(run_dir)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            sys.exit(1)
+        return
+
+    if not args.prompts:
+        print("--prompts required unless --recompute_metrics", file=sys.stderr)
+        sys.exit(1)
+    prompts_path = Path(args.prompts).resolve()
+    project_root = Path(args.project_root or ".").resolve()
 
     try:
         run_samples(run_dir, prompts_path, project_root, seed=args.seed)

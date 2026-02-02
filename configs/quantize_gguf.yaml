@@ -1,0 +1,29 @@
+# Quantization pipeline v1 (GGUF export) — Lesson 6.2
+# Used by: python -m pocketguide.quant.quantize_gguf --config configs/quantize_gguf.yaml
+
+input:
+  base_model_id: meta-llama/Llama-2-7b-hf   # HF model id or local path
+  adapter_dir: runs/train/PLACEHOLDER_RUN_ID/adapter
+
+output:
+  runs_dir: runs/quant
+  name: null   # optional string for run subdir
+
+llamacpp:
+  repo_dir: null   # if null, read LLAMACPP_DIR env var
+  convert_script: convert_hf_to_gguf.py
+  quantize_bin: null   # null = auto-detect (llama-quantize or quantize)
+  llama_print_system_info: true
+
+merge:
+  enabled: true
+  merged_output_dirname: merged_hf
+
+gguf:
+  f16_filename: model.f16.gguf
+
+quant:
+  formats:
+    - Q4_K_M
+    - Q5_K_M
+  output_template: "model.{quant}.gguf"

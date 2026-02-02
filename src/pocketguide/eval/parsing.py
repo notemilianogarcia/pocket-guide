@@ -341,7 +341,7 @@ def parse_and_validate(
     # Validate envelope
     success, error = _validate_envelope(data)
     if not success:
-        return ParseResult(success=False, error=error)
+        return ParseResult(success=False, data=data, error=error)
 
     # Extract payload_type and payload
     payload_type = data.get("payload_type")
@@ -350,6 +350,6 @@ def parse_and_validate(
     # Validate payload
     success, error = _validate_payload(payload, payload_type)
     if not success:
-        return ParseResult(success=False, error=error)
+        return ParseResult(success=False, data=data, error=error)
 
     return ParseResult(success=True, data=data)
