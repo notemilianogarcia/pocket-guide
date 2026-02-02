@@ -108,14 +108,21 @@ pocket-guide/
 
 ## Milestones
 
-- **0** Project foundation: repo structure, configs, stubbed pipeline.
-- **1** Baseline evaluation: travel benchmarks, base report.
-- **2** Behavioral contracts: envelope + payload schemas, parsing/validation.
-- **3** Synthetic data engine: prompt planning → OpenRouter → critique gating → dataset_v1.jsonl.
-- **4** Data quality & splits: near-dup detection, filters, leakage-free splits.
-- **5** Model adaptation: LoRA fine-tuning, training report.
-- **6** Local runtime & quantization: llama.cpp stub, GGUF pipeline, unified CLI, local eval. See [docs/local_runtime_guide.md](docs/local_runtime_guide.md).
-- **7–10** Rigorous evaluation, evidence-driven iteration, deployment realism, final polish (planned).
+- **0** Project foundation: repo structure, configs, stubbed pipeline. Base for reproducible eval and data pipelines.
+- **1** Baseline evaluation: travel benchmark suites (JSONL), metrics, human-readable report generator. Eval runs produce outputs and provenance under `runs/eval/`.
+- **2** Behavioral contracts: envelope + payload JSON schemas (itinerary, checklist, procedure, etc.).
+  Strict/lenient parsing and validation wired into eval and CLI; structured error envelopes on parse failure.
+- **3** Synthetic data engine: prompt planning from specs → teacher (OpenRouter) for drafts/critiques → gating → `dataset_v1.jsonl`.
+  Makefile pipeline for sample, batch, and full runs; optional QA and resume.
+- **4** Data quality & splits: near-duplicate detection, quality filters/gates, leakage-free train/val/test splits and SFT prep.
+  Fixed eval prompts exported to suites; data layout ready for Lightning.
+- **5** Model adaptation: LoRA fine-tuning (PEFT) on Lightning.ai.
+  Config-driven training, run provenance, adapter export for inference and quantization.
+- **6** Local runtime & quantization: HF→GGUF conversion + quantization (Q4/Q5). Unified CLI (`--runtime hf|local`), llama.cpp backend, local eval (latency + schema compliance).
+  See [docs/local_runtime_guide.md](docs/local_runtime_guide.md).
+- **7** Iteration cycle v2 (targeted data + training fix). **Goal:** Demonstrate evaluation-driven iteration (the key research signal). **Scope:** Pick top 1–2 failure modes from M6; apply targeted interventions (dataset augmentation for those failure classes, stricter QC rules, small hyperparam tweaks); retrain adapted model v2; re-evaluate on the same benchmark.
+  **Outputs:** `data/processed/dataset_v2_*`, `runs/train/*v2*`, `docs/evaluation_report_v2.md`. **DoD:** Demonstrable improvement on targeted failure modes; explanation linking intervention → metric delta.
+- **8–10** Further iteration, deployment realism, final polish (planned).
 
 ## Development
 
