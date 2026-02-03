@@ -525,6 +525,7 @@ def run_training(
             return step / warmup_steps if warmup_steps else 1.0
         return 1.0
 
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     scheduler = LambdaLR(optimizer, lr_lambda=_warmup_lr)
     optimizer, scheduler = accelerator.prepare(optimizer, scheduler)
 
