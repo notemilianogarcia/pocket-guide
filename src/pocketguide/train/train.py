@@ -526,6 +526,20 @@ def run_training(
     optimizer, scheduler = accelerator.prepare(optimizer, scheduler)
 
     run_id = run_dir.name
+    if accelerator.is_main_process:
+        print("\n" + "=" * 60)
+        print("TRAINING START")
+        print("=" * 60)
+        print(f"  Run ID:           {run_id}")
+        print(f"  Train samples:    {len(train_dataset)}")
+        print(f"  Val samples:      {len(val_dataset)}")
+        print(f"  Total steps:      {num_training_steps}")
+        print(f"  LR:               {lr}")
+        print(f"  Batch size:       {batch_size} (grad_accum: {grad_accum})")
+        print(f"  Eval every:       {eval_every} steps")
+        print(f"  Save every:       {save_every} steps")
+        print("=" * 60 + "\n")
+
     metrics = {
         "run_id": run_id,
         "global_steps": 0,
@@ -578,20 +592,28 @@ def run_training(
                     if global_step % log_every == 0:
                         metrics["train"].append({"step": global_step, "loss": loss.item()})
                         if accelerator.is_main_process:
-                            print(f"step {global_step} loss {loss.item():.4f}")
+                            pct = 100.0 * global_step / num_training_steps if num_training_steps else 0
+                            print(
+                                f"  [Epoch {epoch + 1}/{num_epochs}] step {global_step}/{num_training_steps} "
+                                f"({pct:.1f}%) | train_loss: {loss.item():.4f}"
+                            )
                     global_step += 1
 
                     if eval_every and global_step % eval_every == 0:
                         val_loss = _eval()
                         metrics["val"].append({"step": global_step, "loss": val_loss})
-                        if accelerator.is_main_process:
-                            print(f"step {global_step} val_loss {val_loss:.4f}")
                         best_val_loss = min(best_val_loss, val_loss)
+                        if accelerator.is_main_process:
+                            print(
+                                f"  >> Validation at step {global_step} | val_loss: {val_loss:.4f} "
+                                f"(best so far: {best_val_loss:.4f})"
+                            )
 
                     if save_every and global_step % save_every == 0 and accelerator.is_main_process:
                         unwrapped = accelerator.unwrap_model(model)
                         unwrapped.save_pretrained(run_dir / "adapter")
                         _write_metrics()
+                        print(f"  >> Checkpoint saved at step {global_step} -> {run_dir / 'adapter'}")
 
                 if max_steps is not None and global_step >= max_steps:
                     break
@@ -620,8 +642,15 @@ def run_training(
         adapter_dir.mkdir(parents=True, exist_ok=True)
         unwrapped.save_pretrained(adapter_dir)
         _write_metrics()
-        print(f"Saved adapter to {adapter_dir}")
-        print(f"Final val_loss: {val_loss:.4f}")
+        print("\n" + "=" * 60)
+        print("TRAINING COMPLETE")
+        print("=" * 60)
+        print(f"  Adapter:     {adapter_dir}")
+        print(f"  Metrics:     {run_dir / 'train_metrics.json'}")
+        print(f"  Final steps: {global_step}")
+        print(f"  Tokens seen: {tokens_seen:,}")
+        print(f"  Final val_loss: {val_loss:.4f}")
+        print("=" * 60 + "\n")
 
 
 # --- Main entry point --------------------------------------------------------
