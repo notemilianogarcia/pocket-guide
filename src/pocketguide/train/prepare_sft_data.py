@@ -15,8 +15,46 @@ from typing import Any
 SYSTEM_INSTRUCTION = (
     "Return JSON only. Output must match the PocketGuide response envelope schema "
     "with fields: summary, assumptions, uncertainty_notes, next_steps, verification_steps, "
-    "payload_type, payload. No markdown."
+    "payload_type, payload. Always include verification_steps (array of strings) and "
+    "payload_type (one of: itinerary, checklist, decision_tree, procedure). No markdown."
 )
+
+# Required envelope keys (v0/response_envelope.schema.json); model must see all in every example
+ENVELOPE_KEYS = (
+    "summary",
+    "assumptions",
+    "uncertainty_notes",
+    "next_steps",
+    "verification_steps",
+    "payload_type",
+    "payload",
+)
+VALID_PAYLOAD_TYPES = frozenset({"itinerary", "checklist", "decision_tree", "procedure"})
+
+
+def _ensure_envelope(response: dict[str, Any], record_payload_type: str | None) -> dict[str, Any]:
+    """Ensure response has all 7 envelope keys so the model always sees full structure in SFT.
+    Fills missing keys with sensible defaults so we never train on incomplete examples.
+    """
+    out = dict(response)
+    if not out.get("summary"):
+        out["summary"] = out.get("summary") or "See payload."
+    if "assumptions" not in out or not isinstance(out["assumptions"], list):
+        out["assumptions"] = out.get("assumptions") if isinstance(out.get("assumptions"), list) else []
+    if not out.get("uncertainty_notes"):
+        out["uncertainty_notes"] = out.get("uncertainty_notes") or "Verify details with official sources."
+    if "next_steps" not in out or not isinstance(out["next_steps"], list):
+        out["next_steps"] = out.get("next_steps") if isinstance(out.get("next_steps"), list) else []
+    if "verification_steps" not in out or not isinstance(out["verification_steps"], list):
+        vs = out.get("verification_steps") if isinstance(out.get("verification_steps"), list) else []
+        out["verification_steps"] = vs if vs else ["Check official sources for current information."]
+    pt = out.get("payload_type") or record_payload_type
+    if pt not in VALID_PAYLOAD_TYPES:
+        pt = "checklist"
+    out["payload_type"] = pt
+    if "payload" not in out or not isinstance(out["payload"], dict):
+        out["payload"] = out.get("payload") if isinstance(out.get("payload"), dict) else {}
+    return out
 
 
 def _serialize_target(response: dict[str, Any]) -> str:
@@ -34,6 +72,7 @@ def record_to_sft(
     response = record.get("response", {})
     if not isinstance(response, dict):
         response = {"summary": str(response)}
+    response = _ensure_envelope(response, record.get("payload_type"))
 
     messages = [
         {"role": "system", "content": SYSTEM_INSTRUCTION},

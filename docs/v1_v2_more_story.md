@@ -71,11 +71,12 @@ Config: `configs/train_lora_v3.yaml` (already added). Same data as v2; changes:
 - `data.max_seq_len: 2048` (if OOM on 24GB, set to 1536 in the config).
 - `training.num_epochs: 3`, `training.warmup_steps: 10`, `training.grad_accum_steps: 8`.
 
-**Commands:** Same data as v2 (no extra data steps). Then:
+**Commands:** Same splits as v2; **re-run prepare-sft-v2** once so SFT data gets envelope normalization (all 7 keys in every example) and the updated system instruction. Then train and eval:
 
 ```bash
+make prepare-sft-v2    # regenerate SFT with envelope normalization (required before v3)
 make train-v3          # or: python -m pocketguide.train.train --config configs/train_lora_v3.yaml
-# After training, run evaluation on the v3 run dir (e.g. runs/train/<timestamp>-v3):
+# After training, run evaluation on the v3 run dir:
 make run-samples RUN_DIR=runs/train/<run_id>-v3
 ```
 

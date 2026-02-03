@@ -142,6 +142,19 @@ Phased build: evaluation and contracts first, then synthetic data and training, 
 | **9** | Portfolio finalization | README architecture, results summary, demo GIF, limitations & safety, final report. |
 | **10** | Further iteration | Deployment realism, polish. |
 
+### Results (adapter evaluation)
+
+Adapter runs are evaluated on a fixed prompt suite (`eval/suites/fixed20_v1.jsonl`) with **base** (no adapter) vs **finetuned** (LoRA) comparison. Metrics: `parse_success_rate`, `schema_valid_rate`, `required_field_presence_rate`, `uncertainty_marker_presence_rate`.
+
+| Run | parse_success_rate | schema_valid_rate | Notes |
+|-----|--------------------|-------------------|--------|
+| Base | 0.00 | 0.00 | No adapter |
+| v1 FT | 0.80 | 0.00 | 1 epoch, max_seq_len 1024 |
+| v2 FT | 1.00 | 0.00 | LR tweak, 1 epoch, 1024 |
+| v3 FT | _TBD_ | _TBD_ | 5 epochs, max_seq_len 2048, envelope norm, larger LoRA |
+
+v3 targets a **significant** gain in schema compliance by fixing truncation (2048), more training (5 epochs, ~100 steps), and SFT envelope normalization. See [docs/v1_v2_more_story.md](docs/v1_v2_more_story.md) and [docs/communicating_results_and_v3.md](docs/communicating_results_and_v3.md) for the iteration story and how to communicate results to recruiters/portfolio.
+
 ## Development
 
 ### Testing

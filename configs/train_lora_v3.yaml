@@ -1,12 +1,13 @@
-# LoRA fine-tuning v3 (MORE: same data as v2, stronger training)
-# Same dataset as v2; multiple training improvements so the model learns the envelope.
+# LoRA fine-tuning v3 (MORE: same data as v2, stronger training for significant gain)
+# Same dataset as v2; multiple training improvements so the model reliably learns the envelope.
 # Prerequisites: same as v2 — split dataset_v2 → data/processed/splits/v2, prepare_sft_data → data/processed/sft/v2.
+# If OOM with max_seq_len 2048 on 24GB, set to 1536.
 
 base_model_id: "meta-llama/Llama-2-7b-hf"
 
 experiment:
   name: "v3"
-  one_change: "v3: more epochs, max_seq_len 2048, warmup (same dataset v2)"
+  one_change: "v3: 5 epochs, max_seq_len 2048, warmup, larger LoRA (same dataset v2)"
   one_change_key: "training.num_epochs"
 
 data:
@@ -14,7 +15,7 @@ data:
   val_path: data/processed/splits/v2/val.jsonl
   train_sft_path: data/processed/sft/v2/train_sft.jsonl
   val_sft_path: data/processed/sft/v2/val_sft.jsonl
-  max_seq_len: 2048   # full envelope in loss (v2 used 1024; truncation hurt schema compliance)
+  max_seq_len: 2048   # full envelope in loss (v2 used 1024; truncation = no signal on verification_steps/payload_type)
 
 output:
   runs_dir: runs/train
@@ -24,15 +25,15 @@ training:
   batch_size: 1
   grad_accum_steps: 8    # more optimizer steps per epoch (v2 had 16 → 10 steps/epoch)
   lr: 1.5e-4
-  num_epochs: 3         # model sees data 3x (v2 had 1)
+  num_epochs: 5         # model sees data 5x (v2 had 1) → ~100 optimizer steps
   max_grad_norm: 1.0
-  warmup_steps: 10      # avoid full LR on step 1
+  warmup_steps: 20      # 20% of ~100 steps; stable start
   eval_every_steps: 100
   save_every_steps: 200
 
 lora:
-  r: 16
-  alpha: 32
+  r: 32                 # larger capacity to learn envelope structure (v2 used 16)
+  alpha: 64             # scale 2x with r (alpha/r = 2)
   dropout: 0.05
   target_modules: "auto"
 
