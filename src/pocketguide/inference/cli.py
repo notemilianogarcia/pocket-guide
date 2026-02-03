@@ -131,7 +131,13 @@ def _build_error_envelope(parse_result: ParseResult, raw_excerpt: str = "") -> d
 
 # --- Unified flow ---
 
-def get_raw_text(runtime: str, prompt: str, runtime_config_path: Path | None, project_root: Path | None) -> tuple[str, dict[str, Any]]:
+def get_raw_text(
+    runtime: str,
+    prompt: str,
+    runtime_config_path: Path | None,
+    project_root: Path | None,
+    gguf_path: Path | None = None,
+) -> tuple[str, dict[str, Any]]:
     """Get raw model output from the selected runtime. Returns (raw_text, metadata)."""
     if runtime == "hf":
         return generate_raw_text_hf(prompt)
@@ -139,7 +145,12 @@ def get_raw_text(runtime: str, prompt: str, runtime_config_path: Path | None, pr
         if runtime_config_path is None or not runtime_config_path.exists():
             raise FileNotFoundError(f"Local runtime config not found: {runtime_config_path}")
         from pocketguide.inference.local_llamacpp import generate_raw_text_local
-        return generate_raw_text_local(prompt, runtime_config_path, project_root=project_root)
+        return generate_raw_text_local(
+            prompt,
+            runtime_config_path,
+            project_root=project_root,
+            gguf_path_override=gguf_path,
+        )
     raise ValueError(f"Unknown runtime: {runtime}. Use 'hf' or 'local'.")
 
 
@@ -167,6 +178,12 @@ def main() -> None:
         help="Path to runtime config (used only for --runtime local)",
     )
     parser.add_argument(
+        "--gguf_path",
+        type=str,
+        default=None,
+        help="Optional override for model.gguf_path when using --runtime local",
+    )
+    parser.add_argument(
         "--format",
         type=str,
         choices=["text", "json"],
@@ -179,6 +196,8 @@ def main() -> None:
     runtime_config_path = Path(args.runtime_config)
     if not runtime_config_path.is_absolute():
         runtime_config_path = (project_root / runtime_config_path).resolve()
+
+    gguf_path = Path(args.gguf_path) if args.gguf_path else None
 
     try:
         raw_text, metadata = get_raw_text(args.runtime, args.prompt, runtime_config_path, project_root)

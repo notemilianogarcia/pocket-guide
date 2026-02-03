@@ -80,7 +80,11 @@ def _resolve_llamacpp_bin(cfg: dict[str, Any], project_root: Path) -> Path | Non
     return None
 
 
-def run_llamacpp(prompt: str, runtime_cfg: dict[str, Any], project_root: Path | None = None) -> dict[str, Any]:
+def run_llamacpp(
+    prompt: str,
+    runtime_cfg: dict[str, Any],
+    project_root: Path | None = None,
+) -> dict[str, Any]:
     """
     Run local inference: stub or real llama.cpp.
 
@@ -185,7 +189,12 @@ def run_llamacpp(prompt: str, runtime_cfg: dict[str, Any], project_root: Path | 
     }
 
 
-def generate_raw_text_local(prompt: str, config_path: Path, project_root: Path | None = None) -> tuple[str, dict[str, Any]]:
+def generate_raw_text_local(
+    prompt: str,
+    config_path: Path,
+    project_root: Path | None = None,
+    gguf_path_override: str | Path | None = None,
+) -> tuple[str, dict[str, Any]]:
     """
     Generate raw text using local backend (stub or llama.cpp).
 
@@ -193,6 +202,16 @@ def generate_raw_text_local(prompt: str, config_path: Path, project_root: Path |
         (raw_text, metadata) where metadata has latency_ms, tokens_generated, command_used.
     """
     cfg = _load_config(config_path)
+    # Optional override for model.gguf_path (used by CLI/registry and local eval)
+    if gguf_path_override is not None:
+        override_path = Path(gguf_path_override)
+        if not override_path.is_absolute():
+            override_path = (project_root or Path.cwd()) / override_path
+            override_path = override_path.resolve()
+        if "model" not in cfg:
+            cfg["model"] = {}
+        cfg["model"]["gguf_path"] = str(override_path)
+
     out = run_llamacpp(prompt, cfg, project_root=project_root)
     return out["raw_text_output"], {
         "latency_ms": out["latency_ms"],

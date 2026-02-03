@@ -325,10 +325,21 @@ report: ## Generate training report v1 (Lesson 5.5). Requires RUN_DIR=runs/train
 		--out docs/training_report_v1.md
 	@echo "✓ Report written to docs/training_report_v1.md"
 
-run: ## Run CLI inference with default prompt
-	@echo "Running PocketGuide CLI stub..."
+MODEL ?= adapted
+PROMPT ?= What documents do I need to travel from the US to Canada?
+
+run: ## Run CLI inference (HF stub by default; LOCAL=1 uses local runtime + registry MODEL=base|adapted)
+	@echo "Running PocketGuide CLI..."
 	@echo ""
-	@$(VENV_PYTHON) -m pocketguide.inference.cli --prompt "What documents do I need to travel from the US to Canada?"
+	@if [ "$(LOCAL)" = "1" ]; then \
+		$(VENV_PYTHON) -m pocketguide.inference.run \
+		  --local \
+		  --model "$(MODEL)" \
+		  --prompt "$(PROMPT)"; \
+	else \
+		$(VENV_PYTHON) -m pocketguide.inference.cli \
+		  --prompt "$(PROMPT)"; \
+	fi
 
 run_local: ## Run local runtime via unified CLI (stub mode; configs/runtime_local.yaml). Optional: PROMPT="..."
 	@prompt="$${PROMPT:-plan a 2-day itinerary for Montreal}"; \
