@@ -5,7 +5,7 @@ This directory contains held-out test prompts for evaluating travel guide genera
 ## Overview
 
 - **Total prompts:** 70
-- **Generation date:** 2026-02-02T19:39:34.486538
+- **Generation date:** 2026-02-02T23:13:19.807856
 - **Random seed:** 42
 - **Train/Val/Test fractions:** 80.0% / 10.0% / 10.0%
 - **Similarity threshold:** 0.75

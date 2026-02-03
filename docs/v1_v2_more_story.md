@@ -71,14 +71,29 @@ Config: `configs/train_lora_v3.yaml` (already added). Same data as v2; changes:
 - `data.max_seq_len: 2048` (if OOM on 24GB, set to 1536 in the config).
 - `training.num_epochs: 3`, `training.warmup_steps: 10`, `training.grad_accum_steps: 8`.
 
-**Commands:** Same splits as v2; **re-run prepare-sft-v2** once so SFT data gets envelope normalization (all 7 keys in every example) and the updated system instruction. Then train and eval:
+**Commands:** Same splits as v2; **re-run prepare SFT v2** once so SFT data gets envelope normalization (all 7 keys in every example). Then train and eval.
 
-```bash
-make prepare-sft-v2    # regenerate SFT with envelope normalization (required before v3)
-make train-v3          # or: python -m pocketguide.train.train --config configs/train_lora_v3.yaml
-# After training, run evaluation on the v3 run dir:
-make run-samples RUN_DIR=runs/train/<run_id>-v3
-```
+**On Lightning.ai (no make)** — use Python only. See [docs/lightning_python_commands.md](lightning_python_commands.md) for the full list.
+
+1. Prepare SFT v2 (envelope normalization, required before v3):
+   ```bash
+   python3 -m pocketguide.train.prepare_sft_data \
+     --splits_dir data/processed/splits/v2 \
+     --out_dir data/processed/sft/v2 \
+     --seed 42 \
+     --fixed_prompts_out eval/suites/fixed20_v1.jsonl
+   ```
+2. Train v3:
+   ```bash
+   python3 -m pocketguide.train.train --config configs/train_lora_v3.yaml
+   ```
+3. After training, run evaluation (replace `<RUN_ID>` with your run folder, e.g. `20260204_123456-v3`):
+   ```bash
+   python3 -m pocketguide.train.run_samples \
+     --run_dir runs/train/<RUN_ID> \
+     --prompts eval/suites/fixed20_v1.jsonl
+   ```
+   Outputs: `runs/train/<RUN_ID>/samples/comparison_metrics.json`, `schema_failures_debug.jsonl`, and per-sample logs.
 
 Compare v3 finetuned vs v2 finetuned (and vs v1 finetuned) using `comparison_metrics.json` and `schema_failures_debug.jsonl`.
 
