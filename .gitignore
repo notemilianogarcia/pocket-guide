@@ -83,6 +83,9 @@ Thumbs.db
 # Environment variables
 .env
 
+# uv (Python package manager)
+uv.lock
+
 # Local model artifacts (not committed; GGUF, adapters, etc.)
 models/*
 !models/README.md
