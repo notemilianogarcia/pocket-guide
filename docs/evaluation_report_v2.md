@@ -2,11 +2,11 @@
 
 ## 1. Summary
 
-This iteration attempted to fix two failure modes identified in Lesson 7.1: (1) JSON format violations (truncation and malformed JSON) and (2) schema and required-field failures (missing envelope or payload fields such as `verification_steps`). The approach was data-centric (dataset v2 with targeted interventions) plus a single training change for v2, followed by further training iterations (v3, v4) to increase learning signal and tighten SFT data.
+This iteration attempted to fix two failure modes identified in Lesson 7.1: (1) JSON format violations (truncation and malformed JSON) and (2) schema and required-field failures (missing envelope or payload fields such as `verification_steps`). The approach was data-centric (dataset v2 with targeted interventions) plus a single training change for v2, followed by further training iterations (v3, v4, v5) to increase learning signal and tighten SFT data.
 
-What changed: dataset v2 added hard prompts and synthetic examples aligned to the target failure modes, stricter rejection in QC, and oversampling; v2 training used a single hyperparameter change (reduced learning rate) on the same base model; v3 increased epochs, sequence length, warmup, and LoRA capacity on the same v2 data; v4 added prompt and payload normalization in SFT preparation and further training steps. All runs were evaluated under the same adapter-based evaluation (run_samples on a fixed prompt suite) with the same parsing and validation logic.
+What changed: dataset v2 added hard prompts and synthetic examples aligned to the target failure modes, stricter rejection in QC, and oversampling; v2 training used a single hyperparameter change (reduced learning rate) on the same base model; v3 increased epochs, sequence length, warmup, and LoRA capacity on the same v2 data; v4 added prompt and payload normalization in SFT preparation and further training steps; v5 applied inference fixes, SFT validation improvements, and extended training to 10 epochs (~640 steps with grad_accum 2). All runs were evaluated under the same adapter-based evaluation (run_samples on a fixed prompt suite) with the same parsing and validation logic.
 
-The goal of achieving a non-zero schema validity rate (full envelope and payload compliance) was not achieved: finetuned schema_valid_rate remained 0% across v1, v2, v3, and v4. Parse success rate improved from 0.80 (v1) to 1.00 (v3, v4), and required_field_presence_rate improved from 0% (v1, v2) to 0.10 (v3) and 0.20 (v4), suggesting partial learning of envelope structure without full schema compliance.
+The goal of achieving a non-zero schema validity rate (full envelope and payload compliance) was not achieved: finetuned schema_valid_rate remained 0% across v1, v2, v3, v4, and v5. Parse success rate improved from 0.80 (v1) to 1.00 (v3, v4, v5), and required_field_presence_rate improved from 0% (v1, v2) to 0.10 (v3, v5), with a temporary spike to 0.20 (v4), suggesting partial learning of envelope structure without full schema compliance.
 
 ---
 
@@ -56,7 +56,11 @@ The resulting dataset (dataset_v2) was split into train/val/test; SFT preparatio
 
 - **Changes (relative to v3):** Same v2 data; SFT regenerated with strengthened prompt and itinerary payload normalization; num_epochs 8 (v3 had 5); grad_accum_steps 4 (v3 had 8); warmup_steps 30.
 - **Rationale:** More optimizer steps and consistent SFT data (object-first prompt, time_block-only payloads) to reduce “root is list” and payload key errors.
+**v5 (run 20260203_075440-v5)**
 
+- **Changes (relative to v4):** Same v2 data; inference fixes and SFT validation improvements applied; num_epochs 10 (v4 had 8); grad_accum_steps 2 (v4 had 4); total training steps 300 (~640 effective with grad_accum 2).
+- **Training dynamics:** Final train loss 0.14; best val_loss 0.96 at step 100; val_loss increased to 1.50 by step 300, indicating potential overfitting.
+- **Rationale:** Extended training with more optimization steps to push learning further; inference-level improvements and SFT validation to ensure data quality.
 ---
 
 ## 4. Evaluation Setup (Controlled)
@@ -73,6 +77,7 @@ The resulting dataset (dataset_v2) was split into train/val/test; SFT preparatio
 - **v2:** run 20260203_013228-v2. Samples: `runs/train/20260203_013228-v2/samples/comparison_metrics.json`.
 - **v3:** run 20260203_041745-v3. Samples: `runs/train/20260203_041745-v3/samples/comparison_metrics.json`.
 - **v4:** run 20260203_053120-v4. Samples: `runs/train/20260203_053120-v4/samples/comparison_metrics.json`.
+- **v5:** run 20260203_075440-v5. Samples: `runs/train/20260203_075440-v5/samples/comparison_metrics.json`.
 
 Note: runs under `runs/eval/` with `local_metrics.json` (e.g., 20260201_221952) used a stub/local runtime and do not reflect real model inference; they are not used as the baseline or comparison for this report.
 
@@ -80,23 +85,23 @@ Note: runs under `runs/eval/` with `local_metrics.json` (e.g., 20260201_221952) 
 
 ## 5. Before / After Metrics
 
-All metrics below are **finetuned** (adapter) results from comparison_metrics.json for each run (n=20 prompts). Base model metrics are omitted for brevity; base schema_valid_rate was 0% for v1 and 5% for v2/v3/v4 (one sample passed in base for the latter runs).
+All metrics below are **finetuned** (adapter) results from comparison_metrics.json for each run (n=20 prompts). Base model metrics are omitted for brevity; base schema_valid_rate was 0% for v1 and 5% for v2/v3/v4/v5 (one sample passed in base for the latter runs).
 
-| Metric | v1 (224510) | v2 (013228-v2) | v3 (041745-v3) | v4 (053120-v4) |
-|--------|-------------|----------------|----------------|----------------|
-| parse_success_rate | 0.80 | 0.85 | 1.00 | 1.00 |
-| schema_valid_rate | 0.00 | 0.00 | 0.00 | 0.00 |
-| required_field_presence_rate | 0.00 | 0.00 | 0.10 | 0.20 |
-| uncertainty_marker_presence_rate | 0.85 | 0.95 | 1.00 | 1.00 |
-| avg_latency_ms | 42228.57 | 19738.82 | 19780.39 | 19280.70 |
+| Metric | v1 (224510) | v2 (013228-v2) | v3 (041745-v3) | v4 (053120-v4) | v5 (075440-v5) |
+|--------|-------------|----------------|----------------|----------------|----------------|
+| parse_success_rate | 0.80 | 0.85 | 1.00 | 1.00 | 1.00 |
+| schema_valid_rate | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| required_field_presence_rate | 0.00 | 0.00 | 0.10 | 0.20 | 0.10 |
+| uncertainty_marker_presence_rate | 0.85 | 0.95 | 1.00 | 1.00 | 1.00 |
+| avg_latency_ms | 42228.57 | 19738.82 | 19780.39 | 19280.70 | 19389.83 |
 
-**Deltas (v4 vs v1)**
+**Deltas (v5 vs v1)**
 
 - parse_success_rate: +0.20 (absolute).
 - schema_valid_rate: 0.00 (no change).
-- required_field_presence_rate: +0.20 (absolute).
+- required_field_presence_rate: +0.10 (absolute).
 - uncertainty_marker_presence_rate: +0.15 (absolute).
-- avg_latency_ms: lower in v2/v3/v4 than v1 (different hardware or batching; not interpreted as a model quality delta).
+- avg_latency_ms: lower in v2/v3/v4/v5 than v1 (different hardware or batching; not interpreted as a model quality delta).
 
 Strict_parse_rate, lenient_parse_rate, envelope_valid_rate, and payload_valid_rate are not reported separately in comparison_metrics; schema_valid_rate is the joint envelope+payload pass rate. Latency and tokens/sec are not compared across runs for causal interpretation due to possible environment and batching differences.
 
@@ -106,11 +111,11 @@ Strict_parse_rate, lenient_parse_rate, envelope_valid_rate, and payload_valid_ra
 
 **Parse success rate**
 
-- Increased from 0.80 (v1) to 0.85 (v2) to 1.00 (v3, v4). This is consistent with the hypothesis that more training (v3, v4), longer max_seq_len (v3, v4), and dataset v2 (v2 onward) improve the likelihood of emitting parseable JSON. Lenient parsing prefers a JSON object over an array when both exist; combined with “object-first” prompt in v4 SFT, the reduction in “root is list” failures in debug artifacts is consistent with this improvement.
+- Increased from 0.80 (v1) to 0.85 (v2) to 1.00 (v3, v4, v5). This is consistent with the hypothesis that more training (v3, v4, v5), longer max_seq_len (v3, v4, v5), and dataset v2 (v2 onward) improve the likelihood of emitting parseable JSON. Lenient parsing prefers a JSON object over an array when both exist; combined with "object-first" prompt in v4+ SFT, the reduction in "root is list" failures in debug artifacts is consistent with this improvement.
 
 **Required field presence rate**
 
-- Increased from 0.00 (v1, v2) to 0.10 (v3) and 0.20 (v4). This metric is computed only over parse-successful samples and measures presence of required envelope fields. The improvement suggests that v3 and v4 training (more epochs, longer sequences, larger LoRA, and in v4 the explicit prompt and payload normalization) led to more often including some of the required envelope fields when the output is at least parseable. It does not imply full envelope+payload validity, which remained 0%.
+- Increased from 0.00 (v1, v2) to 0.10 (v3), then to 0.20 (v4), and back to 0.10 (v5). This metric is computed only over parse-successful samples and measures presence of required envelope fields. The improvement in v3/v4 suggests that more training (epochs, longer sequences, larger LoRA, and explicit prompt/payload normalization) led to more often including some required envelope fields. The v5 result (0.10) suggests that extended training (10 epochs) may have introduced overfitting (val_loss increased from 0.96 to 1.50), potentially regressing on this metric. Full envelope+payload validity remained 0% across all runs.
 
 **Uncertainty marker presence**
 
@@ -126,11 +131,11 @@ Strict_parse_rate, lenient_parse_rate, envelope_valid_rate, and payload_valid_ra
 
 **Schema validity rate**
 
-- Remained 0% for all finetuned runs (v1–v4). The goal of achieving at least some fully schema-compliant outputs was not met. Plausible reasons: (1) the fixed evaluation suite may include prompts that are difficult for the current model size and data mix; (2) training may need even more steps or different objectives (e.g., loss weighting on envelope keys); (3) some failure modes (e.g., emitting a list before the object) may require different prompting or decoding strategies rather than more of the same training.
+- Remained 0% for all finetuned runs (v1–v5). The goal of achieving at least some fully schema-compliant outputs was not met. Plausible reasons: (1) the fixed evaluation suite may include prompts that are difficult for the current model size and data mix; (2) training may need even more steps or different objectives (e.g., loss weighting on envelope keys); (3) some failure modes (e.g., emitting a list before the object) may require different prompting or decoding strategies rather than more of the same training; (4) as seen in v5, simply extending training epochs (10 vs 8) without other changes can lead to overfitting without improving schema compliance.
 
 **Required field presence rate**
 
-- Still low in absolute terms (0.20 in v4). Many parse-successful samples still lack at least one required envelope field, so envelope validity alone is not achieved for most samples.
+- Still low in absolute terms (0.20 peak in v4, regressed to 0.10 in v5). Many parse-successful samples still lack at least one required envelope field, so envelope validity alone is not achieved for most samples. The v5 regression suggests diminishing returns from extended training without architectural or objective changes.
 
 **v2 finetuned vs v2 base**
 
@@ -142,6 +147,12 @@ No other metrics regressed; parse_success and required_field_presence improved o
 
 ## 8. Conclusions and Next Steps
 
-The Milestone 7 iteration was only partly successful. Targeted failure modes (JSON format and schema/required-field) were addressed with dataset v2 (hard prompts, synthetic examples, stricter QC) and a single v2 training change (LR), then with stronger training in v3 (epochs, sequence length, LoRA, warmup) and v4 (more steps, prompt and payload normalization). Parse success rate reached 100% (v3, v4) and required_field_presence_rate increased to 0.20 (v4), but schema_valid_rate remained 0% across all runs. The link from hypothesis to intervention to metric delta is clear for parse success and required-field presence; for full schema validity, the interventions did not produce a measurable improvement under the same evaluation conditions.
+The Milestone 7 iteration was only partly successful. Targeted failure modes (JSON format and schema/required-field) were addressed with dataset v2 (hard prompts, synthetic examples, stricter QC) and a single v2 training change (LR), then with stronger training in v3 (epochs, sequence length, LoRA, warmup), v4 (more steps, prompt and payload normalization), and v5 (extended to 10 epochs with inference fixes and SFT validation). Parse success rate reached 100% (v3, v4, v5) and required_field_presence_rate peaked at 0.20 (v4) but regressed to 0.10 (v5), while schema_valid_rate remained 0% across all runs. The link from hypothesis to intervention to metric delta is clear for parse success; for required-field presence and full schema validity, diminishing returns and potential overfitting (v5 val_loss increased from 0.96 to 1.50) suggest limits of the current approach.
 
-If continuing iteration, next steps could include: (1) expanding the training set or adding curriculum (e.g., envelope-only then full payload); (2) loss masking or weighting to emphasize envelope and payload required fields; (3) inference-time or decoding changes (e.g., object-first sampling or post-processing) to reduce list-first outputs; (4) re-evaluating on a larger or different prompt set to confirm whether the 0% schema_valid rate is stable or suite-dependent. This experiment demonstrates that improving parse success and partial structure (required fields) is achievable with data and training iteration, while full envelope+payload validity for this model and setup remains unsolved under the current evaluation.
+Key findings:
+- **Parse success improved systematically** (0.80 → 1.00) with data quality and training duration.
+- **Required field presence showed modest gains** (0.00 → 0.20 peak in v4) but did not sustain in v5.
+- **Schema validity remained at 0%** despite five iterations, indicating a fundamental gap between parseable JSON with some envelope fields and full envelope+payload compliance.
+- **Extended training (v5) showed overfitting signals** without schema improvement, suggesting architectural or objective changes are needed.
+
+If continuing iteration, next steps could include: (1) expanding the training set or adding curriculum (e.g., envelope-only then full payload); (2) loss masking or weighting to emphasize envelope and payload required fields; (3) inference-time or decoding changes (e.g., object-first sampling or post-processing) to reduce list-first outputs; (4) re-evaluating on a larger or different prompt set to confirm whether the 0% schema_valid rate is stable or suite-dependent; (5) early stopping or regularization to prevent overfitting seen in v5. This experiment demonstrates that improving parse success and partial structure (required fields) is achievable with data and training iteration, while full envelope+payload validity for this model and setup remains unsolved under the current evaluation.
