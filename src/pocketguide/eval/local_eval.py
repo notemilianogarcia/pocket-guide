@@ -1,8 +1,11 @@
 """
-Local eval: latency + schema compliance regression (Milestone 6 — Lesson 6.4).
+Local eval: latency + schema compliance regression (Milestone 6 — Lesson 6.4; v2 Lesson 7.4).
 
 Runs local runtime inference over prompt suites (fixed20 + local regression),
 records latency, approx tokens/sec, parse/schema rates. Writes runs/eval/<run_id>/local_metrics.json.
+
+For v2 model: use --gguf_path_override <path-to-v2-gguf> and --v2 to write under runs/eval/<timestamp>_v2/.
+Same metrics schema; only the model path changes. Inference can be run on Lightning and GGUF downloaded locally.
 """
 
 import json
@@ -170,9 +173,14 @@ def run_local_eval(
     run_id: str | None = None,
     project_root: Path | None = None,
     write_outputs_jsonl: bool = True,
+    gguf_path_override: str | Path | None = None,
+    run_id_suffix: str | None = None,
 ) -> Path:
     """
     Run local eval over suites; write local_metrics.json (and optionally local_outputs.jsonl).
+
+    gguf_path_override: If set, overrides model.gguf_path in runtime config (v2 model artifact).
+    run_id_suffix: If set (e.g. "_v2"), run_id becomes make_run_id() + suffix for v2-tagged runs.
 
     Returns:
         Path to run directory (out_dir / run_id).
@@ -181,10 +189,19 @@ def run_local_eval(
         project_root = Path.cwd()
     if run_id is None:
         run_id = make_run_id()
+    if run_id_suffix and not run_id.endswith(run_id_suffix):
+        run_id = run_id + run_id_suffix
     run_dir = out_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
 
     runtime_cfg = _load_config(runtime_config_path)
+    if gguf_path_override is not None:
+        override_path = Path(gguf_path_override)
+        if not override_path.is_absolute():
+            override_path = (project_root / override_path).resolve()
+        if "model" not in runtime_cfg:
+            runtime_cfg["model"] = {}
+        runtime_cfg["model"]["gguf_path"] = str(override_path)
     all_records: list[dict[str, Any]] = []
 
     for suite_path in suite_paths:
@@ -270,12 +287,26 @@ def main() -> None:
         action="store_true",
         help="Skip writing local_outputs.jsonl",
     )
+    parser.add_argument(
+        "--gguf_path_override",
+        type=str,
+        default=None,
+        help="Override model.gguf_path (e.g. path to v2 quantized GGUF); same metrics, different model.",
+    )
+    parser.add_argument(
+        "--v2",
+        action="store_true",
+        help="Tag run as v2: run_id becomes <timestamp>_v2, output under runs/eval/<timestamp>_v2/.",
+    )
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[3]
     runtime_config_path = args.runtime_config if args.runtime_config.is_absolute() else (project_root / args.runtime_config)
     out_dir = args.out_dir if args.out_dir.is_absolute() else (project_root / args.out_dir)
     suite_paths = [project_root / p.strip() for p in args.suites.split(",") if p.strip()]
+
+    gguf_override = Path(args.gguf_path_override) if args.gguf_path_override else None
+    run_id_suffix = "_v2" if args.v2 else None
 
     try:
         run_dir = run_local_eval(
@@ -285,6 +316,8 @@ def main() -> None:
             run_id=args.run_id,
             project_root=project_root,
             write_outputs_jsonl=not args.no_outputs_jsonl,
+            gguf_path_override=gguf_override,
+            run_id_suffix=run_id_suffix,
         )
     except FileExistsError as e:
         print(f"Run directory already exists: {e}", file=sys.stderr)

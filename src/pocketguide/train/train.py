@@ -507,14 +507,17 @@ def run_training(
     )
     model, train_loader, val_loader = accelerator.prepare(model, train_loader, val_loader)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    num_training_steps = (
-        min(max_steps, len(train_loader) * num_epochs)
-        if max_steps is not None
-        else len(train_loader) * num_epochs
-    )
+    # Effective optimizer steps (with grad accumulation: 1 step per grad_accum batches)
+    batches_per_step = batch_size * grad_accum
+    num_steps_per_epoch = max(1, (len(train_dataset) + batches_per_step - 1) // batches_per_step)
+    num_training_steps = num_steps_per_epoch * num_epochs
+    if max_steps is not None:
+        num_training_steps = min(max_steps, num_training_steps)
     if num_training_steps <= 0:
         num_training_steps = max_steps or 100
+    # When total steps are low, log every step so progress is visible
+    if num_training_steps <= 20 and log_every > 1:
+        log_every = 1
     from torch.optim.lr_scheduler import LambdaLR
 
     def _warmup_lr(step):
@@ -533,11 +536,16 @@ def run_training(
         print(f"  Run ID:           {run_id}")
         print(f"  Train samples:    {len(train_dataset)}")
         print(f"  Val samples:      {len(val_dataset)}")
-        print(f"  Total steps:      {num_training_steps}")
+        print(f"  Optimizer steps:  {num_training_steps} (1 step = {grad_accum} batches)")
         print(f"  LR:               {lr}")
         print(f"  Batch size:       {batch_size} (grad_accum: {grad_accum})")
         print(f"  Eval every:       {eval_every} steps")
         print(f"  Save every:       {save_every} steps")
+        if num_training_steps < 50:
+            print("")
+            print("  *** WARNING: Very few optimizer steps. Training will finish quickly.")
+            print("  *** To train longer: increase num_epochs in config, or reduce")
+            print("     grad_accum_steps (e.g. 4 or 8) for more steps per epoch.")
         print("=" * 60 + "\n")
 
     metrics = {

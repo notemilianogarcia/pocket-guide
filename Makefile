@@ -1,4 +1,4 @@
-.PHONY: env lint test data drafts drafts-sample drafts-dry-run drafts-batch critiques critiques-sample critiques-dry-run critiques-batch dataset dataset-sample dataset-dry-run dataset-batch pipeline-batch split split-v2 prepare-sft prepare-sft-v2 data-full pipeline-sample debug-sample regate-overconfident clean-data train train-run train-dry-run train-v2 train-v2-dry-run run-samples recompute-sample-metrics report run run_local quantize quantize-dry-run eval eval-local clean help
+.PHONY: env lint test data drafts drafts-sample drafts-dry-run drafts-batch critiques critiques-sample critiques-dry-run critiques-batch dataset dataset-sample dataset-dry-run dataset-batch pipeline-batch split split-v2 prepare-sft prepare-sft-v2 data-full pipeline-sample debug-sample regate-overconfident clean-data train train-run train-dry-run train-v2 train-v2-dry-run run-samples recompute-sample-metrics report run run_local quantize quantize-dry-run eval eval-local eval_local_v2 clean help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -362,6 +362,18 @@ eval-local: ## Local eval: latency + schema compliance over fixed20 + local_regr
 		--suites eval/suites/fixed20_v1.jsonl,eval/suites/local_regression_v1.jsonl \
 		--out_dir runs/eval
 	@echo "✓ Local eval complete. Check runs/eval/<run_id>/local_metrics.json"
+
+# Lesson 7.4: same local eval pipeline, v2 model artifact; output under runs/eval/<timestamp>_v2/
+eval_local_v2: ## Local eval for v2 model: same suites, v2 GGUF. Requires GGUF=<path>. Optional: PROMPTS=suite1.jsonl,suite2.jsonl
+	@test -n "$(GGUF)" || (echo "Usage: make eval_local_v2 GGUF=<path-to-v2-gguf> [PROMPTS=...]" && exit 1)
+	@suites="$${PROMPTS:-eval/suites/fixed20_v1.jsonl,eval/suites/local_regression_v1.jsonl}"; \
+	$(VENV_PYTHON) -m pocketguide.eval.local_eval \
+		--runtime_config configs/runtime_local.yaml \
+		--suites "$$suites" \
+		--out_dir runs/eval \
+		--gguf_path_override "$(GGUF)" \
+		--v2
+	@echo "✓ Local eval v2 complete. Check runs/eval/<run_id>_v2/local_metrics.json"
 
 clean: ## Remove generated files and caches
 	@echo "Cleaning up..."

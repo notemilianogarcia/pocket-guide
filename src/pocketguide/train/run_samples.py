@@ -204,11 +204,26 @@ def run_samples(
     prompts_path: Path,
     project_root: Path,
     seed: int = 42,
+    verbose: bool = True,
 ) -> None:
     """Load config and prompts, run base and finetuned inference, write outputs and metrics."""
+    def log(msg: str) -> None:
+        if verbose:
+            print(msg, flush=True)
+
+    log("=" * 60)
+    log("RUN SAMPLES (base + finetuned inference)")
+    log("=" * 60)
+    log(f"  Run dir:   {run_dir}")
+    log(f"  Prompts:   {prompts_path}")
+
     cfg = _load_config(run_dir)
     prompts = _load_prompts(prompts_path)
+    n_prompts = len(prompts)
+    log(f"  Prompts loaded: {n_prompts}")
     _ensure_adapter(run_dir)
+    log("  Adapter:   OK")
+    log("")
 
     # Resolve device/precision (same as train)
     try:
@@ -269,16 +284,19 @@ def run_samples(
     model_spec = ModelSpec(id=cfg.get("base_model_id", ""))
     runtime_spec = RuntimeSpec(device=device, dtype=dtype)
 
-    # Load base model (no adapter)
+    log(f"  Device:    {device}, precision: {precision}")
+    log("")
+    log("Loading base model (no adapter)...")
     base_model, tokenizer = load_model_and_tokenizer(model_spec, runtime_spec)
+    log("  Base model loaded.")
+    log("")
 
     samples_dir = run_dir / "samples"
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     base_records = []
-    n_prompts = len(prompts)
     for i, row in enumerate(prompts, 1):
-        print(f"Base {i}/{n_prompts} {row.get('id', '')}", flush=True)
+        log(f"  Base {i}/{n_prompts}  id={row.get('id', '')}  ...")
         prompt_text = row["prompt"]
         result = _run_inference_one(
             base_model, tokenizer, prompt_text, gen_spec, gen_seed
@@ -297,28 +315,34 @@ def run_samples(
             tokens_generated=tokens_gen,
         )
         base_records.append(rec)
+        latency_ms = latency_s * 1000
+        log(f"             -> {latency_ms:.0f} ms  parse_ok={rec.get('parse_success')}  schema_ok={rec.get('schema_valid')}")
 
     base_out = samples_dir / "base_outputs.jsonl"
     with open(base_out, "w", encoding="utf-8") as f:
         for rec in base_records:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    log(f"  Base outputs written: {base_out} ({len(base_records)} records)")
+    log("")
 
     # Free base model before loading finetuned (save memory)
+    log("Freeing base model...")
     del base_model
     if device == "cuda":
         torch.cuda.empty_cache()
-
-    # Load base + LoRA adapter
+    log("Loading base model + LoRA adapter (finetuned)...")
     from peft import PeftModel
 
     base_model, tokenizer = load_model_and_tokenizer(model_spec, runtime_spec)
     adapter_path = run_dir / "adapter"
     model = PeftModel.from_pretrained(base_model, str(adapter_path))
     model.eval()
+    log("  Finetuned model loaded.")
+    log("")
 
     finetuned_records = []
     for i, row in enumerate(prompts, 1):
-        print(f"Finetuned {i}/{n_prompts} {row.get('id', '')}", flush=True)
+        log(f"  Finetuned {i}/{n_prompts}  id={row.get('id', '')}  ...")
         prompt_text = row["prompt"]
         result = _run_inference_one(model, tokenizer, prompt_text, gen_spec, gen_seed)
         raw_output = result.get("completion_text", result.get("text", ""))
@@ -335,11 +359,15 @@ def run_samples(
             tokens_generated=tokens_gen,
         )
         finetuned_records.append(rec)
+        latency_ms = latency_s * 1000
+        log(f"             -> {latency_ms:.0f} ms  parse_ok={rec.get('parse_success')}  schema_ok={rec.get('schema_valid')}")
 
     finetuned_out = samples_dir / "finetuned_outputs.jsonl"
     with open(finetuned_out, "w", encoding="utf-8") as f:
         for rec in finetuned_records:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    log(f"  Finetuned outputs written: {finetuned_out} ({len(finetuned_records)} records)")
+    log("")
 
     base_metrics = _compute_aggregate_metrics(base_records)
     finetuned_metrics = _compute_aggregate_metrics(finetuned_records)
@@ -355,9 +383,18 @@ def run_samples(
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(comparison, f, indent=2)
 
-    print(f"Wrote {base_out} ({len(base_records)} records)")
-    print(f"Wrote {finetuned_out} ({len(finetuned_records)} records)")
-    print(f"Wrote {metrics_path}")
+    log("=" * 60)
+    log("COMPLETE")
+    log("=" * 60)
+    log(f"  Base:       {base_out}")
+    log(f"  Finetuned:  {finetuned_out}")
+    log(f"  Metrics:    {metrics_path}")
+    log("")
+    log("  Finetuned aggregate:")
+    log(f"    parse_success_rate:   {finetuned_metrics.get('parse_success_rate', 0):.2%}")
+    log(f"    schema_valid_rate:    {finetuned_metrics.get('schema_valid_rate', 0):.2%}")
+    log(f"    avg_latency_ms:       {finetuned_metrics.get('avg_latency_ms')}")
+    log("=" * 60)
 
 
 def recompute_sample_metrics(run_dir: Path) -> None:
