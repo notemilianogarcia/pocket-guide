@@ -1,0 +1,50 @@
+# LoRA fine-tuning v4 (quick iteration: more epochs + object-first nudge)
+# Same data as v2/v3. Goal: reduce "got list" failures and get non-zero schema_valid for portfolio.
+# Prerequisites: same as v3 — data/processed/sft/v2/ (run prepare_sft_data for v2 once).
+
+base_model_id: "meta-llama/Llama-2-7b-hf"
+
+experiment:
+  name: "v4"
+  one_change: "v4: 7 epochs, same data; object-first (portfolio push)"
+  one_change_key: "training.num_epochs"
+
+data:
+  train_path: data/processed/splits/v2/train.jsonl
+  val_path: data/processed/splits/v2/val.jsonl
+  train_sft_path: data/processed/sft/v2/train_sft.jsonl
+  val_sft_path: data/processed/sft/v2/val_sft.jsonl
+  max_seq_len: 2048
+
+output:
+  runs_dir: runs/train
+
+training:
+  seed: 42
+  batch_size: 1
+  grad_accum_steps: 8
+  lr: 1.5e-4
+  num_epochs: 7         # v3 had 5; one more push
+  max_grad_norm: 1.0
+  warmup_steps: 20
+  eval_every_steps: 100
+  save_every_steps: 200
+
+lora:
+  r: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: "auto"
+
+runtime:
+  device: auto
+  precision: auto
+  gradient_checkpointing: true
+  dummy_model: false
+  num_workers: 2
+  pin_memory: true
+
+logging:
+  log_every_steps: 10
+  enable_wandb: false
+  project: pocketguide

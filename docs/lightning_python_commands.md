@@ -82,8 +82,9 @@ Verbose logging is on by default; you’ll see per-sample `[schema fail]` lines 
 | Step | Command |
 |------|--------|
 | Split v2 (if needed) | `python3 -m pocketguide.data_generation.split_dataset_v1 --in_path data/processed/dataset_v2.jsonl --out_dir data/processed/splits/v2 --seed 42 --train_frac 0.8 --val_frac 0.1 --test_frac 0.1` |
-| Prepare SFT v2 (before v3) | `python3 -m pocketguide.train.prepare_sft_data --splits_dir data/processed/splits/v2 --out_dir data/processed/sft/v2 --seed 42 --fixed_prompts_out eval/suites/fixed20_v1.jsonl` |
+| Prepare SFT v2 (before v3/v4) | `python3 -m pocketguide.train.prepare_sft_data --splits_dir data/processed/splits/v2 --out_dir data/processed/sft/v2 --seed 42 --fixed_prompts_out eval/suites/fixed20_v1.jsonl` |
 | Train v3 | `python3 -m pocketguide.train.train --config configs/train_lora_v3.yaml` |
-| Eval (after training) | `python3 -m pocketguide.train.run_samples --run_dir runs/train/<RUN_ID> --prompts eval/suites/fixed20_v1.jsonl` |
+| Eval (batched, ~8–12 min) | `python3 -m pocketguide.train.run_samples --run_dir runs/train/<RUN_ID> --prompts eval/suites/fixed20_v1.jsonl` |
+| Train v4 (optional) | `python3 -m pocketguide.train.train --config configs/train_lora_v4.yaml` |
 
 Run from the repo root. If you get “file not found”, check that `data/processed/dataset_v2.jsonl` and (after split) `data/processed/splits/v2/train.jsonl` exist.

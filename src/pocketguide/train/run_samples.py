@@ -145,6 +145,41 @@ def _run_inference_one(
     return result
 
 
+def _run_inference_batch(
+    model: Any,
+    tokenizer: Any,
+    prompt_rows: list[dict[str, Any]],
+    gen_spec: Any,
+    seed: int,
+) -> list[dict[str, Any]]:
+    """Run inference for a batch of prompts; returns list of sample records."""
+    from pocketguide.inference.base_model import generate_batch
+
+    if not prompt_rows:
+        return []
+    prompts = [r["prompt"] for r in prompt_rows]
+    results = generate_batch(
+        model, tokenizer, prompts, gen_spec, seed=seed,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    records = []
+    for row, result in zip(prompt_rows, results):
+        raw_output = result.get("completion_text", result.get("text", ""))
+        parse_result = parse_and_validate(raw_output, strict_json=False)
+        latency_s = result.get("timing", {}).get("latency_s", 0)
+        usage = result.get("usage", {})
+        tokens_gen = usage.get("completion_tokens")
+        rec = _build_sample_record(
+            row,
+            raw_output,
+            parse_result,
+            latency_ms=latency_s * 1000,
+            tokens_generated=tokens_gen,
+        )
+        records.append(rec)
+    return records
+
+
 def _compute_aggregate_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute lightweight aggregate metrics for a set of sample records."""
     n = len(records)
@@ -210,8 +245,11 @@ def run_samples(
     project_root: Path,
     seed: int = 42,
     verbose: bool = True,
+    batch_size: int = 8,
 ) -> None:
-    """Load config and prompts, run base and finetuned inference, write outputs and metrics."""
+    """Load config and prompts, run base and finetuned inference, write outputs and metrics.
+    Uses batched generation when batch_size > 1 for faster eval (better GPU utilization).
+    """
     def log(msg: str) -> None:
         if verbose:
             print(msg, flush=True)
@@ -221,6 +259,7 @@ def run_samples(
     log("=" * 60)
     log(f"  Run dir:   {run_dir}")
     log(f"  Prompts:   {prompts_path}")
+    log(f"  Batch size: {batch_size} (batched generation for faster eval)")
 
     cfg = _load_config(run_dir)
     prompts = _load_prompts(prompts_path)
@@ -302,28 +341,16 @@ def run_samples(
     samples_dir.mkdir(parents=True, exist_ok=True)
 
     base_records = []
-    for i, row in enumerate(prompts, 1):
-        log(f"  Base {i}/{n_prompts}  id={row.get('id', '')}  ...")
-        prompt_text = row["prompt"]
-        result = _run_inference_one(
-            base_model, tokenizer, prompt_text, gen_spec, gen_seed
+    for start in range(0, n_prompts, batch_size):
+        batch_rows = prompts[start : start + batch_size]
+        batch_ids = [r.get("id", "") for r in batch_rows]
+        log(f"  Base batch {start // batch_size + 1}/{(n_prompts + batch_size - 1) // batch_size}  ids={batch_ids[:3]}{'...' if len(batch_ids) > 3 else ''}")
+        batch_records = _run_inference_batch(
+            base_model, tokenizer, batch_rows, gen_spec, gen_seed
         )
-        raw_output = result.get("completion_text", result.get("text", ""))
-        parse_result = parse_and_validate(raw_output, strict_json=False)
-        latency_s = result.get("timing", {}).get("latency_s", 0)
-        usage = result.get("usage", {})
-        tokens_gen = usage.get("completion_tokens")
-
-        rec = _build_sample_record(
-            row,
-            raw_output,
-            parse_result,
-            latency_ms=latency_s * 1000,
-            tokens_generated=tokens_gen,
-        )
-        base_records.append(rec)
-        latency_ms = latency_s * 1000
-        log(f"             -> {latency_ms:.0f} ms  parse_ok={rec.get('parse_success')}  schema_ok={rec.get('schema_valid')}")
+        base_records.extend(batch_records)
+        for rec in batch_records:
+            log(f"             id={rec.get('prompt_id')} -> {rec.get('latency_ms', 0):.0f} ms  parse_ok={rec.get('parse_success')}  schema_ok={rec.get('schema_valid')}")
 
     base_out = samples_dir / "base_outputs.jsonl"
     with open(base_out, "w", encoding="utf-8") as f:
@@ -348,51 +375,37 @@ def run_samples(
     log("")
 
     debug_path = samples_dir / "schema_failures_debug.jsonl"
-    # Open debug file for incremental write so partial results are saved if run is stopped early
     debug_file = open(debug_path, "w", encoding="utf-8")
     try:
         finetuned_records = []
-        for i, row in enumerate(prompts, 1):
-            log(f"  Finetuned {i}/{n_prompts}  id={row.get('id', '')}  ...")
-            prompt_text = row["prompt"]
-            result = _run_inference_one(model, tokenizer, prompt_text, gen_spec, gen_seed)
-            raw_output = result.get("completion_text", result.get("text", ""))
-            parse_result = parse_and_validate(raw_output, strict_json=False)
-            latency_s = result.get("timing", {}).get("latency_s", 0)
-            usage = result.get("usage", {})
-            tokens_gen = usage.get("completion_tokens")
-
-            rec = _build_sample_record(
-                row,
-                raw_output,
-                parse_result,
-                latency_ms=latency_s * 1000,
-                tokens_generated=tokens_gen,
+        for start in range(0, n_prompts, batch_size):
+            batch_rows = prompts[start : start + batch_size]
+            batch_ids = [r.get("id", "") for r in batch_rows]
+            log(f"  Finetuned batch {start // batch_size + 1}/{(n_prompts + batch_size - 1) // batch_size}  ids={batch_ids[:3]}{'...' if len(batch_ids) > 3 else ''}")
+            batch_records = _run_inference_batch(
+                model, tokenizer, batch_rows, gen_spec, gen_seed
             )
-            finetuned_records.append(rec)
-            latency_ms = latency_s * 1000
-            log(f"             -> {latency_ms:.0f} ms  parse_ok={rec.get('parse_success')}  schema_ok={rec.get('schema_valid')}")
-            if not rec.get("schema_valid") and rec.get("parse_success"):
-                # Debug: why did schema validation fail?
-                err_code = rec.get("error_code") or "?"
-                missing = rec.get("missing_fields") or []
-                err_msg = (rec.get("schema_error_message") or "")[:120]
-                keys = rec.get("parsed_top_level_keys") or []
-                log(f"             [schema fail] error_code={err_code}  missing_fields={missing}  parsed_keys={keys}")
-                if err_msg:
-                    log(f"             [schema fail] message: {err_msg}...")
-                # Append to debug file immediately so partial run still has failures
-                entry = {
-                    "prompt_id": rec.get("prompt_id"),
-                    "error_code": rec.get("error_code"),
-                    "missing_fields": rec.get("missing_fields"),
-                    "schema_error_message": (rec.get("schema_error_message") or "")[:300],
-                    "parsed_top_level_keys": rec.get("parsed_top_level_keys"),
-                    "raw_output_len": len(rec.get("raw_text_output") or ""),
-                }
-                debug_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
-                debug_file.flush()
-
+            finetuned_records.extend(batch_records)
+            for rec in batch_records:
+                log(f"             id={rec.get('prompt_id')} -> {rec.get('latency_ms', 0):.0f} ms  parse_ok={rec.get('parse_success')}  schema_ok={rec.get('schema_valid')}")
+                if not rec.get("schema_valid") and rec.get("parse_success"):
+                    err_code = rec.get("error_code") or "?"
+                    missing = rec.get("missing_fields") or []
+                    err_msg = (rec.get("schema_error_message") or "")[:120]
+                    keys = rec.get("parsed_top_level_keys") or []
+                    log(f"             [schema fail] error_code={err_code}  missing_fields={missing}  parsed_keys={keys}")
+                    if err_msg:
+                        log(f"             [schema fail] message: {err_msg}...")
+                    entry = {
+                        "prompt_id": rec.get("prompt_id"),
+                        "error_code": rec.get("error_code"),
+                        "missing_fields": rec.get("missing_fields"),
+                        "schema_error_message": (rec.get("schema_error_message") or "")[:300],
+                        "parsed_top_level_keys": rec.get("parsed_top_level_keys"),
+                        "raw_output_len": len(rec.get("raw_text_output") or ""),
+                    }
+                    debug_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                    debug_file.flush()
         n_failures = sum(1 for r in finetuned_records if r.get("parse_success") and not r.get("schema_valid"))
         if n_failures:
             log(f"  Schema failures debug: {debug_path} ({n_failures} entries)")
@@ -528,6 +541,12 @@ def main() -> None:
         help="Random seed for generation (default: 42)",
     )
     parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=8,
+        help="Batch size for generation (default: 8). Larger = faster eval, more VRAM.",
+    )
+    parser.add_argument(
         "--recompute_metrics",
         action="store_true",
         help="Re-parse existing sample JSONL and recompute metrics (no model load)",
@@ -554,7 +573,13 @@ def main() -> None:
     project_root = Path(args.project_root or ".").resolve()
 
     try:
-        run_samples(run_dir, prompts_path, project_root, seed=args.seed)
+        run_samples(
+            run_dir,
+            prompts_path,
+            project_root,
+            seed=args.seed,
+            batch_size=args.batch_size,
+        )
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
         sys.exit(1)
