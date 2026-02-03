@@ -15,6 +15,20 @@ import yaml
 
 from pocketguide.eval.metrics_v0 import check_required_fields, detect_uncertainty_markers
 from pocketguide.eval.parsing import parse_and_validate
+from pocketguide.train.data import format_chat
+
+# Match SFT system instruction so eval prompts use the same chat formatting style the model saw in training.
+# This is important for chat-tuned base models (e.g., Llama-2) where prompting without the chat template
+# can significantly degrade format adherence.
+SYSTEM_INSTRUCTION_FOR_INFERENCE = (
+    "Return JSON only. Output a single JSON object (not a list or array). "
+    "Match the PocketGuide response envelope: summary, assumptions, uncertainty_notes, "
+    "next_steps, verification_steps, payload_type, payload. "
+    "Always include verification_steps (array of strings) and payload_type "
+    "(one of: itinerary, checklist, decision_tree, procedure). "
+    "For itinerary payloads, every activity item must have \"time_block\" (e.g. \"morning\", \"14:00-16:00\"). "
+    "No markdown."
+)
 
 # Envelope required fields for required_field_presence_rate
 ENVELOPE_REQUIRED_FIELDS = [
@@ -193,7 +207,17 @@ def _run_inference_batch(
 
     if not prompt_rows:
         return []
-    prompts = [r["prompt"] for r in prompt_rows]
+    # Use the same chat formatting as training: system + user, then apply tokenizer chat template if available.
+    prompts = [
+        format_chat(
+            [
+                {"role": "system", "content": SYSTEM_INSTRUCTION_FOR_INFERENCE},
+                {"role": "user", "content": r["prompt"]},
+            ],
+            tokenizer,
+        )
+        for r in prompt_rows
+    ]
     results = generate_batch(
         model, tokenizer, prompts, gen_spec, seed=seed,
         pad_token_id=tokenizer.pad_token_id,
