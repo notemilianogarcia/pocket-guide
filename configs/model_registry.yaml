@@ -1,0 +1,11 @@
+models:
+  base:
+    description: "Base quantized model (Llama-2-7B, Q4_K_M)"
+    gguf_path: "artifacts/models/base-llama2-7b/gguf/model.Q4_K_M.gguf"
+    quant: "Q4_K_M"
+
+  adapted:
+    description: "PocketGuide adapted model v5 (Q4_K_M)"
+    gguf_path: "artifacts/models/pocketguide-v5/gguf/model.Q4_K_M.gguf"
+    quant: "Q4_K_M"
+

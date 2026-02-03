@@ -86,3 +86,6 @@ Thumbs.db
 # Local model artifacts (not committed; GGUF, adapters, etc.)
 models/*
 !models/README.md
+
+# Packaged artifacts (GGUF binaries ignored; small metadata allowed)
+artifacts/models/**/gguf/*.gguf

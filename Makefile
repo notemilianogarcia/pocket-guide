@@ -384,6 +384,18 @@ eval_local_v2: ## Local eval for v2 model: same suites, v2 GGUF. Requires GGUF=<
 		--v2
 	@echo "✓ Local eval v2 complete. Check runs/eval/<run_id>_v2/local_metrics.json"
 
+package_model: ## Package a quantized GGUF model into artifacts/models (MODEL_NAME=..., GGUF=..., [EXTRA_GGUF=...], [TRAIN_RUN=...], [QUANT_RUN=...])
+	@if [ -z "$(MODEL_NAME)" ] || [ -z "$(GGUF)" ]; then \
+		echo "Usage: make package_model MODEL_NAME=... GGUF=... [EXTRA_GGUF=...] [TRAIN_RUN=...] [QUANT_RUN=...]"; \
+		exit 1; \
+	fi; \
+	$(VENV_PYTHON) -m pocketguide.artifacts.package_model \
+	  --model_name "$(MODEL_NAME)" \
+	  --gguf "$(GGUF)" \
+	  $(if $(EXTRA_GGUF),--extra_gguf "$(EXTRA_GGUF)",) \
+	  $(if $(TRAIN_RUN),--train_run "$(TRAIN_RUN)",) \
+	  $(if $(QUANT_RUN),--quant_run "$(QUANT_RUN)",)
+
 clean: ## Remove generated files and caches
 	@echo "Cleaning up..."
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
