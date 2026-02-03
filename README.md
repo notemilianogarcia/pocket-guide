@@ -123,18 +123,11 @@ Phased build: evaluation and contracts first, then synthetic data and training, 
 | **4** | **Data QA & splits** | Near-duplicate detection, quality filters/gates, leakage-free train/val/test splits, SFT prep. Fixed eval prompts exported to suites; data ready for Lightning. |
 | **5** | **Fine-tuning (v1)** | LoRA (PEFT) on Lightning.ai. Config-driven training, run provenance, adapter export for inference and quantization. |
 | **6** | **Local runtime & quantization** | HF→GGUF conversion + Q4/Q5 quantization. Unified CLI (hf and local runtimes), llama.cpp backend, local eval (latency + schema compliance). See [docs/local_runtime_guide.md](docs/local_runtime_guide.md). |
+| **7** | **Iteration cycle (v2–v4)** | Dataset v2 (hard prompts, synthetic examples, stricter QC) → v2 (LR tweak) → v3 (5 epochs, max_seq_len 2048, larger LoRA) → v4 (8 epochs, SFT prompt/payload normalization). Artifacts: `data/processed/dataset_v2_*`, `runs/train/*v2*`, `*v3*`, `*v4*`, [evaluation_report_v2.md](docs/evaluation_report_v2.md). Parse success 100% (v3/v4), required_field improved; schema_valid 0% (see report). |
 
 ---
 
 ### Next
-
-| # | Milestone | Goal | Scope |
-|---|-----------|------|--------|
-| **7** | **Iteration cycle (v2)** | Demonstrate evaluation-driven iteration (the key research signal). | Pick top 1–2 failure modes from M6 → targeted interventions (dataset augmentation, stricter QC, hyperparam tweaks) → retrain v2 → re-evaluate. **Artifacts:** `data/processed/dataset_v2_*`, `runs/train/*v2*`, `docs/evaluation_report_v2.md`. **DoD:** Measurable improvement on targeted failures + explanation linking intervention → metric delta. |
-
----
-
-### Planned
 
 | # | Milestone | Focus |
 |---|-----------|--------|
@@ -144,16 +137,17 @@ Phased build: evaluation and contracts first, then synthetic data and training, 
 
 ### Results (adapter evaluation)
 
-Adapter runs are evaluated on a fixed prompt suite (`eval/suites/fixed20_v1.jsonl`) with **base** (no adapter) vs **finetuned** (LoRA) comparison. Metrics: `parse_success_rate`, `schema_valid_rate`, `required_field_presence_rate`, `uncertainty_marker_presence_rate`.
+Adapter runs are evaluated on a fixed prompt suite (`eval/suites/fixed20_v1.jsonl`, n=20) with **base** (no adapter) vs **finetuned** (LoRA) comparison. Metrics: `parse_success_rate`, `schema_valid_rate`, `required_field_presence_rate`, `uncertainty_marker_presence_rate`.
 
-| Run | parse_success_rate | schema_valid_rate | Notes |
-|-----|--------------------|-------------------|--------|
-| Base | 0.00 | 0.00 | No adapter |
-| v1 FT | 0.80 | 0.00 | 1 epoch, max_seq_len 1024 |
-| v2 FT | 1.00 | 0.00 | LR tweak, 1 epoch, 1024 |
-| v3 FT | _TBD_ | _TBD_ | 5 epochs, max_seq_len 2048, envelope norm, larger LoRA |
+| Run | parse_success_rate | schema_valid_rate | required_field_presence_rate | Notes |
+|-----|--------------------|-------------------|------------------------------|--------|
+| Base | 0.85 | 0.05 | 0.00 | No adapter |
+| v1 FT | 0.80 | 0.00 | 0.00 | 1 epoch, max_seq_len 1024 |
+| v2 FT | 0.85 | 0.00 | 0.00 | LR 1.5e-4, 1 epoch, 1024, dataset v2 |
+| v3 FT | 1.00 | 0.00 | 0.10 | 5 epochs, max_seq_len 2048, larger LoRA |
+| v4 FT | 1.00 | 0.00 | 0.20 | 8 epochs, SFT prompt + payload normalization |
 
-v3 targets a **significant** gain in schema compliance by fixing truncation (2048), more training (5 epochs, ~100 steps), and SFT envelope normalization. See [docs/v1_v2_more_story.md](docs/v1_v2_more_story.md) and [docs/communicating_results_and_v3.md](docs/communicating_results_and_v3.md) for the iteration story and how to communicate results to recruiters/portfolio.
+Full schema validity (envelope + payload) stayed 0% across finetuned runs; parse success reached 100% (v3/v4) and required-field presence improved to 0.20 (v4). See [docs/evaluation_report_v2.md](docs/evaluation_report_v2.md) for the iteration story and [docs/schema_validity_analysis.md](docs/schema_validity_analysis.md) for an evidence-based analysis of why (truncation, payload keys/shape) and what would need to improve.
 
 ## Development
 

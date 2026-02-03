@@ -38,6 +38,8 @@ class GenSpec:
     temperature: float = 0.0
     top_p: float = 1.0
     repetition_penalty: float = 1.0
+    eos_token_id: int | None = None
+    stop_sequences: list[str] | None = None
 
 
 def load_model_and_tokenizer(
@@ -132,6 +134,9 @@ def generate_one(
     # Start timing
     start_time = time.perf_counter()
 
+    # Use eos_token_id from spec or fall back to tokenizer default
+    eos_token_id = gen_spec.eos_token_id if gen_spec.eos_token_id is not None else tokenizer.eos_token_id
+    
     # Generate
     with torch.no_grad():
         outputs = model.generate(
@@ -143,9 +148,35 @@ def generate_one(
             top_p=gen_spec.top_p,
             repetition_penalty=gen_spec.repetition_penalty,
             pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=eos_token_id,
             return_dict_in_generate=True,
             return_legacy_cache=True,
         )
+    
+    # Post-process: truncate completion at stop sequences if found (handles multiple JSON generation)
+    # Note: JSON extraction in run_samples.py will handle this more robustly, but this helps too
+    if gen_spec.stop_sequences:
+        generated_ids = outputs.sequences[0]
+        completion_ids = generated_ids[prompt_tokens:]
+        completion_text = tokenizer.decode(completion_ids, skip_special_tokens=False)
+        for stop_seq in gen_spec.stop_sequences:
+            if stop_seq in completion_text:
+                stop_idx = completion_text.find(stop_seq)
+                # Truncate at stop sequence (keep the stop sequence)
+                truncated_text = completion_text[:stop_idx + len(stop_seq)]
+                # Re-encode and reconstruct
+                truncated_ids = tokenizer.encode(truncated_text, add_special_tokens=False, return_tensors="pt")
+                if truncated_ids.shape[1] > 0:
+                    pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
+                    new_seq = torch.cat([input_ids[0], truncated_ids[0].to(model.device)], dim=0)
+                    # Pad or truncate to match original length
+                    if new_seq.shape[0] < generated_ids.shape[0]:
+                        padding = torch.full((generated_ids.shape[0] - new_seq.shape[0],), pad_id, device=model.device, dtype=new_seq.dtype)
+                        new_seq = torch.cat([new_seq, padding], dim=0)
+                    elif new_seq.shape[0] > generated_ids.shape[0]:
+                        new_seq = new_seq[:generated_ids.shape[0]]
+                    outputs.sequences[0] = new_seq
+                break
 
     # End timing
     end_time = time.perf_counter()
@@ -228,6 +259,9 @@ def generate_batch(
     attention_mask = inputs["attention_mask"].to(model.device)
     prompt_lengths = attention_mask.sum(dim=1).tolist()
 
+    # Use eos_token_id from spec or fall back to tokenizer default
+    eos_token_id = gen_spec.eos_token_id if gen_spec.eos_token_id is not None else tokenizer.eos_token_id
+    
     start_time = time.perf_counter()
     with torch.no_grad():
         outputs = model.generate(
@@ -239,9 +273,38 @@ def generate_batch(
             top_p=gen_spec.top_p,
             repetition_penalty=gen_spec.repetition_penalty,
             pad_token_id=pad_id,
+            eos_token_id=eos_token_id,
             return_dict_in_generate=True,
             return_legacy_cache=True,
         )
+    
+    # Post-process batch: truncate completion at stop sequences if found
+    # Note: JSON extraction in run_samples.py will handle this more robustly, but this helps too
+    if gen_spec.stop_sequences:
+        sequences = outputs.sequences.clone()
+        for i in range(sequences.shape[0]):
+            start_len = prompt_lengths[i]
+            completion_ids = sequences[i, start_len:]
+            completion_text = tokenizer.decode(completion_ids, skip_special_tokens=False)
+            for stop_seq in gen_spec.stop_sequences:
+                if stop_seq in completion_text:
+                    stop_idx = completion_text.find(stop_seq)
+                    # Truncate at stop sequence (keep the stop sequence)
+                    truncated_text = completion_text[:stop_idx + len(stop_seq)]
+                    truncated_ids = tokenizer.encode(truncated_text, add_special_tokens=False, return_tensors="pt")
+                    if truncated_ids.shape[1] > 0:
+                        new_completion = truncated_ids[0].to(model.device)
+                        # Reconstruct full sequence
+                        new_seq = torch.cat([sequences[i, :start_len], new_completion], dim=0)
+                        # Pad or truncate to match original length
+                        if new_seq.shape[0] < sequences.shape[1]:
+                            padding = torch.full((sequences.shape[1] - new_seq.shape[0],), pad_id, device=model.device, dtype=new_seq.dtype)
+                            new_seq = torch.cat([new_seq, padding], dim=0)
+                        elif new_seq.shape[0] > sequences.shape[1]:
+                            new_seq = new_seq[:sequences.shape[1]]
+                        sequences[i] = new_seq
+                    break
+        outputs.sequences = sequences
     end_time = time.perf_counter()
     latency_s = end_time - start_time
 

@@ -145,6 +145,42 @@ def _run_inference_one(
     return result
 
 
+def _extract_first_complete_json(text: str) -> str:
+    """Extract the first complete JSON object from text (handles prose prefix, multiple JSONs).
+    
+    Scans for the first '{' and bracket-matches to find the first complete JSON object.
+    This handles cases where model outputs prose + JSON or multiple JSON objects.
+    
+    Args:
+        text: Raw model output (may contain prose, multiple JSON objects, etc.)
+        
+    Returns:
+        Extracted JSON string (first complete object), or original text if no complete object found.
+    """
+    # Find first '{'
+    start_idx = text.find('{')
+    if start_idx == -1:
+        return text
+    
+    # Bracket-match to find the closing '}'
+    depth = 0
+    end_idx = None
+    for i in range(start_idx, len(text)):
+        if text[i] == '{':
+            depth += 1
+        elif text[i] == '}':
+            depth -= 1
+            if depth == 0:
+                end_idx = i + 1
+                break
+    
+    if end_idx is None:
+        # No complete object found, return original
+        return text
+    
+    return text[start_idx:end_idx]
+
+
 def _run_inference_batch(
     model: Any,
     tokenizer: Any,
@@ -165,17 +201,26 @@ def _run_inference_batch(
     records = []
     for row, result in zip(prompt_rows, results):
         raw_output = result.get("completion_text", result.get("text", ""))
-        parse_result = parse_and_validate(raw_output, strict_json=False)
+        # Extract first complete JSON object (handles prose prefix, multiple JSONs)
+        # v5: This prevents "got list" failures from truncated or repeated JSON
+        extracted_json = _extract_first_complete_json(raw_output)
+        # Parse the extracted JSON (not raw output) to avoid truncation issues
+        parse_result = parse_and_validate(extracted_json, strict_json=False)
         latency_s = result.get("timing", {}).get("latency_s", 0)
         usage = result.get("usage", {})
         tokens_gen = usage.get("completion_tokens")
+        # Store raw_output for debugging, but parsing used extracted_json
         rec = _build_sample_record(
             row,
-            raw_output,
-            parse_result,
+            raw_output,  # Keep raw for debugging truncation/repetition
+            parse_result,  # This was parsed from extracted_json
             latency_ms=latency_s * 1000,
             tokens_generated=tokens_gen,
         )
+        # Add metadata if extraction happened (for debugging)
+        if extracted_json != raw_output:
+            rec["extraction_applied"] = True
+            rec["extracted_json"] = extracted_json
         records.append(rec)
     return records
 
@@ -302,10 +347,10 @@ def run_samples(
         else:
             precision = "fp32"
 
-    # Generation params (fixed for both runs). Use at least 2048 tokens so full envelope+payload
-    # is not truncated (truncation at 1024 produces incomplete JSON and 0% schema_valid).
+    # Generation params (fixed for both runs). Use 4096 tokens to ensure even long responses
+    # complete (v5 fix: increased from 2048 to handle repetition and long payloads).
     data_cfg = cfg.get("data", {})
-    max_new_tokens = max(int(data_cfg.get("max_seq_len", 1024)), 2048)
+    max_new_tokens = 4096  # v5: increased from max(max_seq_len, 2048) to handle truncation
     train_cfg = cfg.get("training", {})
     gen_seed = int(train_cfg.get("seed", 42)) if seed is None else seed
 
@@ -318,19 +363,24 @@ def run_samples(
 
     dtype_map = {"fp32": "float32", "fp16": "float16", "bf16": "bfloat16"}
     dtype = dtype_map.get(precision, "float32")
+    
+    # v5: Add stop sequences to prevent multiple JSON generation, increase repetition_penalty
     gen_spec = GenSpec(
         max_new_tokens=max_new_tokens,
         do_sample=True,
         temperature=0.7,
         top_p=0.9,
-        repetition_penalty=1.1,
+        repetition_penalty=1.2,  # v5: increased from 1.1 to reduce repetition
+        stop_sequences=["\n}\n", "\n}\n\n"],  # Stop after complete JSON object
     )
 
     model_spec = ModelSpec(id=cfg.get("base_model_id", ""))
     runtime_spec = RuntimeSpec(device=device, dtype=dtype)
 
     log(f"  Device:    {device}, precision: {precision}")
-    log(f"  Max new tokens: {max_new_tokens} (ensures full envelope+payload not truncated)")
+    log(f"  Max new tokens: {max_new_tokens} (v5: increased to handle long responses)")
+    log(f"  Repetition penalty: {gen_spec.repetition_penalty} (v5: increased to reduce duplicate JSON)")
+    log(f"  Stop sequences: {gen_spec.stop_sequences} (v5: prevent multiple JSON generation)")
     log("")
     log("Loading base model (no adapter)...")
     base_model, tokenizer = load_model_and_tokenizer(model_spec, runtime_spec)

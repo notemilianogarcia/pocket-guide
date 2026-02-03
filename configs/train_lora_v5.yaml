@@ -1,0 +1,53 @@
+# LoRA fine-tuning v5 (inference fixes + SFT validation + more training)
+# Same data as v2/v3/v4; SFT regenerated with validation (drops schema-invalid examples).
+# v5 changes:
+# - Inference: max_new_tokens 4096, stop sequences, JSON extraction, rep_pen 1.2
+# - SFT validation: drops examples that fail envelope+payload schema validation
+# - More training: 10 epochs (was 8), grad_accum 2 (was 4) → ~640 optimizer steps (was ~320)
+
+base_model_id: "meta-llama/Llama-2-7b-hf"
+
+experiment:
+  name: "v5"
+  one_change: "v5: inference fixes + SFT validation + more training (10 epochs, grad_accum 2, ~640 steps)"
+  one_change_key: "training.num_epochs"
+
+data:
+  train_path: data/processed/splits/v2/train.jsonl
+  val_path: data/processed/splits/v2/val.jsonl
+  train_sft_path: data/processed/sft/v2/train_sft.jsonl
+  val_sft_path: data/processed/sft/v2/val_sft.jsonl
+  max_seq_len: 2048
+
+output:
+  runs_dir: runs/train
+
+training:
+  seed: 42
+  batch_size: 2
+  grad_accum_steps: 2   # v5: reduced from 4 to get more optimizer steps (~640 total vs v4's ~320)
+  lr: 1.5e-4
+  num_epochs: 10         # v5: increased from 8 to 10 for more training
+  max_grad_norm: 1.0
+  warmup_steps: 40       # ~6% of steps (was 30 for 8 epochs)
+  eval_every_steps: 100
+  save_every_steps: 200
+
+lora:
+  r: 32
+  alpha: 64
+  dropout: 0.05
+  target_modules: "auto"
+
+runtime:
+  device: auto
+  precision: auto
+  gradient_checkpointing: false
+  dummy_model: false
+  num_workers: 2
+  pin_memory: true
+
+logging:
+  log_every_steps: 10
+  enable_wandb: false
+  project: pocketguide
