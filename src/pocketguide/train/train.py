@@ -6,6 +6,7 @@ Validates config and datasets, creates reproducible run directories, supports
 """
 
 import argparse
+import os
 import json
 import platform
 import random
@@ -33,6 +34,10 @@ try:
     import numpy as np
 except ImportError:
     np = None
+
+# Avoid tokenizer parallelism + fork warnings in DataLoader workers.
+# (Transformers tokenizers can deadlock if used before forking.)
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 
 # --- Config validation -------------------------------------------------------
@@ -559,6 +564,7 @@ def run_training(
     tokens_seen = 0
     global_step = 0
     best_val_loss = float("inf")
+    best_step: int | None = None
 
     def _write_metrics():
         write_json(run_dir / "train_metrics.json", metrics)
@@ -579,6 +585,12 @@ def run_training(
                     raise
         model.train()
         return total_loss / n_batches if n_batches else float("nan")
+
+    def _save_adapter(to_dir: Path) -> None:
+        """Save adapter weights to a directory (main process only)."""
+        unwrapped = accelerator.unwrap_model(model)
+        to_dir.mkdir(parents=True, exist_ok=True)
+        unwrapped.save_pretrained(to_dir)
 
     try:
         model.train()
@@ -611,18 +623,34 @@ def run_training(
                     if eval_every and global_step % eval_every == 0:
                         val_loss = _eval()
                         metrics["val"].append({"step": global_step, "loss": val_loss})
-                        best_val_loss = min(best_val_loss, val_loss)
+                        improved = val_loss < best_val_loss
+                        if improved:
+                            best_val_loss = val_loss
+                            best_step = global_step
                         if accelerator.is_main_process:
                             print(
                                 f"  >> Validation at step {global_step} | val_loss: {val_loss:.4f} "
                                 f"(best so far: {best_val_loss:.4f})"
                             )
+                            # Save best checkpoint for rollback/eval.
+                            if improved:
+                                _save_adapter(run_dir / "adapter_best")
+                                # Also keep run_dir/adapter pointing to best so downstream eval uses best by default.
+                                _save_adapter(run_dir / "adapter")
+                                _write_metrics()
+                                print(
+                                    f"  >> Best checkpoint updated at step {global_step} "
+                                    f"-> {run_dir / 'adapter_best'} (and {run_dir / 'adapter'})"
+                                )
 
                     if save_every and global_step % save_every == 0 and accelerator.is_main_process:
-                        unwrapped = accelerator.unwrap_model(model)
-                        unwrapped.save_pretrained(run_dir / "adapter")
+                        # Save step checkpoint to its own directory for later analysis/rollback.
+                        _save_adapter(run_dir / f"adapter_step_{global_step}")
                         _write_metrics()
-                        print(f"  >> Checkpoint saved at step {global_step} -> {run_dir / 'adapter'}")
+                        print(
+                            f"  >> Checkpoint saved at step {global_step} "
+                            f"-> {run_dir / f'adapter_step_{global_step}'}"
+                        )
 
                 if max_steps is not None and global_step >= max_steps:
                     break
@@ -644,17 +672,31 @@ def run_training(
         "val_loss": val_loss,
         "train_steps": global_step,
         "tokens_seen": tokens_seen,
+        "best_val_loss": best_val_loss,
+        "best_step": best_step,
     }
     if accelerator.is_main_process:
-        unwrapped = accelerator.unwrap_model(model)
-        adapter_dir = run_dir / "adapter"
-        adapter_dir.mkdir(parents=True, exist_ok=True)
-        unwrapped.save_pretrained(adapter_dir)
+        # Save final weights to a separate directory for debugging.
+        # run_dir/adapter is maintained as "best" during training (when validation improves).
+        adapter_best_dir = run_dir / "adapter_best"
+        adapter_final_dir = run_dir / "adapter_final"
+        _save_adapter(adapter_final_dir)
         _write_metrics()
         print("\n" + "=" * 60)
         print("TRAINING COMPLETE")
         print("=" * 60)
-        print(f"  Adapter:     {adapter_dir}")
+        if best_step is not None:
+            print(
+                f"  Adapter (best):  {adapter_best_dir}  "
+                f"(step {best_step}, val_loss {best_val_loss:.4f})"
+            )
+            print(
+                f"  Adapter (final): {adapter_final_dir}  "
+                f"(step {global_step}, val_loss {val_loss:.4f})"
+            )
+            print(f"  Adapter (default eval): {run_dir / 'adapter'}  (points to best)")
+        else:
+            print(f"  Adapter (final): {adapter_final_dir}")
         print(f"  Metrics:     {run_dir / 'train_metrics.json'}")
         print(f"  Final steps: {global_step}")
         print(f"  Tokens seen: {tokens_seen:,}")
@@ -754,7 +796,7 @@ def main() -> None:
 
     if args.run_id:
         run_id = args.run_id
-    elif isinstance(exp, dict) and exp.get("name") in ("v2", "v3", "v4"):
+    elif isinstance(exp, dict) and exp.get("name") in ("v2", "v3", "v4", "v5"):
         run_id = make_run_id() + "-" + exp.get("name")
     else:
         run_id = make_run_id()

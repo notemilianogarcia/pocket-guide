@@ -30,8 +30,8 @@ training:
   num_epochs: 10         # v5: increased from 8 to 10 for more training
   max_grad_norm: 1.0
   warmup_steps: 40       # ~6% of steps (was 30 for 8 epochs)
-  eval_every_steps: 100
-  save_every_steps: 200
+  eval_every_steps: 50
+  save_every_steps: 100
 
 lora:
   r: 32
