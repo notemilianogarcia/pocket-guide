@@ -67,6 +67,10 @@ def load_model_and_tokenizer(
         trust_remote_code=False,
     )
 
+    # Decoder-only models (like Llama) should use left padding for batched generation.
+    # Right padding can cause incorrect generation behavior.
+    tokenizer.padding_side = "left"
+
     # Ensure tokenizer has pad token
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -235,6 +239,9 @@ def generate_batch(
     """
     if not prompts:
         return []
+
+    # Ensure left padding for decoder-only generation (Llama, etc.)
+    tokenizer.padding_side = "left"
 
     random.seed(seed)
     torch.manual_seed(seed)

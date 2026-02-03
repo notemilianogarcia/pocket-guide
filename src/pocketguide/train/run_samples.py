@@ -181,41 +181,6 @@ def _extract_first_complete_json(text: str) -> str:
     return text[start_idx:end_idx]
 
 
-def _normalizer_for_eval(parsed: dict[str, Any]) -> dict[str, Any]:
-    """Lightweight eval-time normalizer to reduce common schema failures.
-
-    IMPORTANT: This is applied only during evaluation parsing, not during training.
-    It fixes obvious key mismatches that are common in LLM outputs.
-    """
-    if not isinstance(parsed, dict):
-        return parsed
-    payload_type = parsed.get("payload_type")
-    payload = parsed.get("payload")
-    if payload_type != "itinerary" or not isinstance(payload, dict):
-        return parsed
-
-    trip_days = payload.get("trip_days")
-    if not isinstance(trip_days, list):
-        return parsed
-
-    # Fix common itinerary bug: model uses "time" instead of required "time_block"
-    # and schema disallows extra keys.
-    for day in trip_days:
-        if not isinstance(day, dict):
-            continue
-        items = day.get("items")
-        if not isinstance(items, list):
-            continue
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            if "time_block" not in item and "time" in item:
-                item["time_block"] = item.get("time")
-                item.pop("time", None)
-
-    return parsed
-
-
 def _run_inference_batch(
     model: Any,
     tokenizer: Any,
@@ -240,11 +205,7 @@ def _run_inference_batch(
         # v5: This prevents "got list" failures from truncated or repeated JSON
         extracted_json = _extract_first_complete_json(raw_output)
         # Parse the extracted JSON (not raw output) to avoid truncation issues
-        parse_result = parse_and_validate(
-            extracted_json,
-            strict_json=False,
-            normalizer=_normalizer_for_eval,
-        )
+        parse_result = parse_and_validate(extracted_json, strict_json=False)
         latency_s = result.get("timing", {}).get("latency_s", 0)
         usage = result.get("usage", {})
         tokens_gen = usage.get("completion_tokens")
