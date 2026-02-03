@@ -7,16 +7,20 @@ eval/suites/fixed20_v1.jsonl (deterministic sample of 20 prompts from val).
 """
 
 import argparse
+import copy
 import json
 import random
 from pathlib import Path
 from typing import Any
 
 SYSTEM_INSTRUCTION = (
-    "Return JSON only. Output must match the PocketGuide response envelope schema "
-    "with fields: summary, assumptions, uncertainty_notes, next_steps, verification_steps, "
-    "payload_type, payload. Always include verification_steps (array of strings) and "
-    "payload_type (one of: itinerary, checklist, decision_tree, procedure). No markdown."
+    "Return JSON only. Output a single JSON object (not a list or array). "
+    "Match the PocketGuide response envelope: summary, assumptions, uncertainty_notes, "
+    "next_steps, verification_steps, payload_type, payload. "
+    "Always include verification_steps (array of strings) and payload_type "
+    "(one of: itinerary, checklist, decision_tree, procedure). "
+    "For itinerary payloads, every activity item must have \"time_block\" (e.g. \"morning\", \"14:00-16:00\"). "
+    "No markdown."
 )
 
 # Required envelope keys (v0/response_envelope.schema.json); model must see all in every example
@@ -54,6 +58,43 @@ def _ensure_envelope(response: dict[str, Any], record_payload_type: str | None) 
     out["payload_type"] = pt
     if "payload" not in out or not isinstance(out["payload"], dict):
         out["payload"] = out.get("payload") if isinstance(out.get("payload"), dict) else {}
+    out["payload"] = _normalize_payload_for_sft(out["payload"], out["payload_type"])
+    return out
+
+
+def _normalize_payload_for_sft(payload: dict[str, Any], payload_type: str) -> dict[str, Any]:
+    """Tighten SFT data: normalize payload so model only sees schema-consistent keys.
+    - itinerary: ensure every activity item has time_block (copy from time_buffer if present, else default); remove time_buffer.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    out = copy.deepcopy(payload)
+    if payload_type != "itinerary":
+        return out
+    trip_days = out.get("trip_days")
+    if not isinstance(trip_days, list):
+        return out
+    for day in trip_days:
+        if not isinstance(day, dict):
+            continue
+        items = day.get("items")
+        if not isinstance(items, list):
+            continue
+        for i, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue
+            # time_buffer -> time_block so model never sees wrong key
+            if "time_buffer" in item and "time_block" not in item:
+                item = dict(item)
+                item["time_block"] = item.pop("time_buffer", "See summary")
+            elif "time_block" not in item:
+                item = dict(item)
+                item["time_block"] = item.get("time_buffer", "See summary")
+                item.pop("time_buffer", None)
+            else:
+                item = dict(item)
+                item.pop("time_buffer", None)
+            items[i] = item
     return out
 
 

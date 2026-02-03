@@ -1,12 +1,12 @@
-# LoRA fine-tuning v4 (quick iteration: more epochs + object-first nudge)
-# Same data as v2/v3. Goal: reduce "got list" failures and get non-zero schema_valid for portfolio.
-# Prerequisites: same as v3 — data/processed/sft/v2/ (run prepare_sft_data for v2 once).
+# LoRA fine-tuning v4 (last iteration: prompt + data QA + more training)
+# Same data as v2/v3; SFT prepared with stronger prompt and payload normalization (prepare_sft_data).
+# Prerequisites: re-run prepare_sft_data for v2 so SFT has object-first prompt and itinerary time_block normalization.
 
 base_model_id: "meta-llama/Llama-2-7b-hf"
 
 experiment:
   name: "v4"
-  one_change: "v4: 7 epochs, same data; object-first (portfolio push)"
+  one_change: "v4: 8 epochs, grad_accum 4, prompt + payload QA (same data)"
   one_change_key: "training.num_epochs"
 
 data:
@@ -22,11 +22,11 @@ output:
 training:
   seed: 42
   batch_size: 1
-  grad_accum_steps: 8
+  grad_accum_steps: 4   # more optimizer steps per epoch (v3 had 8 → ~20 steps/epoch)
   lr: 1.5e-4
-  num_epochs: 7         # v3 had 5; one more push
+  num_epochs: 8         # v3 had 5; v4 last push → ~320 steps total
   max_grad_norm: 1.0
-  warmup_steps: 20
+  warmup_steps: 30      # ~10% of steps
   eval_every_steps: 100
   save_every_steps: 200
 

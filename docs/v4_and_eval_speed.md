@@ -25,25 +25,33 @@ Same outputs: `comparison_metrics.json`, `schema_failures_debug.jsonl`, base/fin
 
 ---
 
-## 2. v4: focused iteration (optional)
+## 2. v4: last iteration (prompt + data QA + more training)
 
-Your debug showed: **most failures = "got list"** (model outputs array instead of object); **2 had full envelope** but failed on payload (`time_block`, `time_buffer`). So the direction is right; a bit more training can help.
+Your debug showed: **most failures = "got list"**; **2 had full envelope** but failed on payload (`time_block` missing, `time_buffer` unexpected). v4 improves that without adding new data.
 
-**v4 scope (minimal):**
+**v4 scope:**
 
-- **Same data** as v3 (v2 splits + SFT). No new data pipeline.
-- **7 epochs** (v3 had 5) → ~140 optimizer steps.
-- **Same** max_seq_len 2048, LoRA r=32, warmup, etc.
+- **Prompt:** System instruction now says "Output a single JSON object (not a list or array)" and "For itinerary payloads, every activity item must have \"time_block\"". Reduces list-first and payload key mistakes.
+- **Data QA (SFT):** `prepare_sft_data` normalizes itinerary payloads: every activity item gets `time_block` (from `time_buffer` if present, else default); `time_buffer` is removed so the model never sees the wrong key.
+- **More training:** 8 epochs, grad_accum 4 → ~320 optimizer steps (v3 had 5 epochs, grad_accum 8 → ~100 steps). Same max_seq_len 2048, LoRA r=32, warmup 30.
+- **Same data:** v2 splits; no new data. **Re-run prepare_sft_data for v2** before training v4 so SFT gets the new prompt and payload normalization.
 
 **Config:** `configs/train_lora_v4.yaml` (already added). Run ID will be `<timestamp>-v4`.
 
 **Commands (Lightning):**
 
 ```bash
-# 1. Train v4 (same SFT as v3; no extra data step)
+# 1. Re-run prepare_sft_data so SFT has new prompt + itinerary time_block normalization
+python3 -m pocketguide.train.prepare_sft_data \
+  --splits_dir data/processed/splits/v2 \
+  --out_dir data/processed/sft/v2 \
+  --seed 42 \
+  --fixed_prompts_out eval/suites/fixed20_v1.jsonl
+
+# 2. Train v4
 python3 -m pocketguide.train.train --config configs/train_lora_v4.yaml
 
-# 2. Eval v4 (with batching; replace RUN_ID with your v4 run folder)
+# 3. Eval v4 (with batching; replace RUN_ID with your v4 run folder)
 python3 -m pocketguide.train.run_samples \
   --run_dir runs/train/<RUN_ID> \
   --prompts eval/suites/fixed20_v1.jsonl
