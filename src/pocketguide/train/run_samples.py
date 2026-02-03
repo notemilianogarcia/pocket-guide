@@ -258,9 +258,10 @@ def run_samples(
         else:
             precision = "fp32"
 
-    # Generation params (fixed for both runs)
+    # Generation params (fixed for both runs). Use at least 2048 tokens so full envelope+payload
+    # is not truncated (truncation at 1024 produces incomplete JSON and 0% schema_valid).
     data_cfg = cfg.get("data", {})
-    max_new_tokens = int(data_cfg.get("max_seq_len", 1024))
+    max_new_tokens = max(int(data_cfg.get("max_seq_len", 1024)), 2048)
     train_cfg = cfg.get("training", {})
     gen_seed = int(train_cfg.get("seed", 42)) if seed is None else seed
 
@@ -285,6 +286,7 @@ def run_samples(
     runtime_spec = RuntimeSpec(device=device, dtype=dtype)
 
     log(f"  Device:    {device}, precision: {precision}")
+    log(f"  Max new tokens: {max_new_tokens} (ensures full envelope+payload not truncated)")
     log("")
     log("Loading base model (no adapter)...")
     base_model, tokenizer = load_model_and_tokenizer(model_spec, runtime_spec)
