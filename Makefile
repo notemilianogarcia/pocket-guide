@@ -1,4 +1,4 @@
-.PHONY: env lint test data drafts drafts-sample drafts-dry-run drafts-batch critiques critiques-sample critiques-dry-run critiques-batch dataset dataset-sample dataset-dry-run dataset-batch pipeline-batch split split-v2 prepare-sft prepare-sft-v2 data-full pipeline-sample debug-sample regate-overconfident clean-data train train-run train-dry-run train-v2 train-v2-dry-run run-samples recompute-sample-metrics report run run_local quantize quantize-dry-run eval eval-local eval_local_v2 clean help
+.PHONY: env lint test data drafts drafts-sample drafts-dry-run drafts-batch critiques critiques-sample critiques-dry-run critiques-batch dataset dataset-sample dataset-dry-run dataset-batch pipeline-batch split split-v2 prepare-sft prepare-sft-v2 data-full pipeline-sample debug-sample regate-overconfident clean-data train train-run train-dry-run train-v2 train-v2-dry-run train-v3 train-v3-dry-run run-samples recompute-sample-metrics report run run_local quantize quantize-dry-run eval eval-local eval_local_v2 clean help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -295,6 +295,15 @@ train-v2: ## Run v2 training (configs/train_lora_v2.yaml). Requires: make split-
 train-v2-dry-run: ## Validate v2 config and datasets without loading model
 	@$(VENV_PYTHON) -m pocketguide.train.train --config configs/train_lora_v2.yaml --dry_run
 	@echo "✓ V2 dry run OK."
+
+train-v3: ## Run v3 training (configs/train_lora_v3.yaml). Same data as v2; more epochs, max_seq_len 2048, warmup.
+	@echo "Starting v3 training (configs/train_lora_v3.yaml)..."
+	@$(VENV_PYTHON) -m pocketguide.train.train --config configs/train_lora_v3.yaml
+	@echo "✓ V3 training complete. Check runs/train/<run_id>-v3/ for outputs."
+
+train-v3-dry-run: ## Validate v3 config and datasets without loading model
+	@$(VENV_PYTHON) -m pocketguide.train.train --config configs/train_lora_v3.yaml --dry_run
+	@echo "✓ V3 dry run OK."
 
 run-samples: ## Run base + finetuned sample generation (Lesson 5.4). Requires RUN_DIR=runs/train/<run_id>
 	@test -n "$(RUN_DIR)" || (echo "Usage: make run-samples RUN_DIR=runs/train/<run_id>" && exit 1)

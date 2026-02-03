@@ -117,6 +117,39 @@ class TestLenientJsonParsing:
         assert result.error.code == JSON_LENIENT_PARSE_FAILED
         assert result.error.error_type == "json_parse"
 
+    def test_lenient_prefers_object_over_array(self):
+        """When text contains both a JSON array and a JSON object, lenient parse returns the object (envelope)."""
+        envelope = {
+            "summary": "Trip",
+            "assumptions": [],
+            "uncertainty_notes": "",
+            "next_steps": [],
+            "verification_steps": ["Check embassy"],
+            "payload_type": "itinerary",
+            "payload": {
+                "title": "Trip",
+                "trip_days": [
+                    {"day": 1, "summary": "Day 1", "items": [{"time_block": "morning", "activity": "Arrive"}]}
+                ],
+            },
+        }
+        # Array appears first in text; object later. We should use the object.
+        response = 'Summary: ["Flexible itinerary; see next steps."]\n\n' + json.dumps(envelope)
+        result = parse_and_validate(response, strict_json=False)
+        assert result.success, result.error
+        assert result.data is not None
+        assert result.data.get("summary") == "Trip"
+        assert result.data.get("payload_type") == "itinerary"
+
+    def test_lenient_array_only_fails_envelope_with_clear_error(self):
+        """When only a JSON array is present, envelope validation fails with clear message."""
+        response = '["Flexible itinerary with some meals included; see next steps to customize"]'
+        result = parse_and_validate(response, strict_json=False)
+        assert not result.success
+        assert result.error.code == ENVELOPE_SCHEMA_FAILED
+        assert "object" in result.error.message.lower()
+        assert "array" in result.error.message.lower() or "list" in result.error.message.lower()
+
 
 class TestEnvelopeValidation:
     """Test envelope schema validation."""

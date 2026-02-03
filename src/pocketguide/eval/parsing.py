@@ -112,13 +112,15 @@ def _parse_json_lenient(text: str) -> tuple[bool, dict[str, Any] | None, str | N
     - JSON in plain code fences (``` ... ```)
     - JSON wrapped in prose
 
-    Guardrails:
-    - If a candidate fails json.loads, continues searching for another candidate
-    - Maximum candidate length enforced to avoid pathological inputs
-    - Deterministic left-to-right search
+    Prefers a JSON object over an array when both exist (envelope is always an object).
+    Models sometimes output a leading array (e.g. summary bullets) then the envelope;
+    taking the first object avoids wrongly using the array and failing envelope validation.
 
-    Returns: (success, data, error_message)
+    Returns: (success, data, error_message). data is dict when an object was found,
+    otherwise may be list when only array(s) exist (envelope validation will then fail).
     """
+    candidates: list[Any] = []  # collect parseable values; prefer dict
+
     # Try to find JSON in code fences first
     json_fence_patterns = [
         r"```(?:json)?\s*\n(.*?)\n```",  # markdown code fence
@@ -129,22 +131,25 @@ def _parse_json_lenient(text: str) -> tuple[bool, dict[str, Any] | None, str | N
         for match in re.finditer(pattern, text, re.DOTALL):
             json_str = match.group(1).strip()
 
-            # Apply max candidate length
             if len(json_str) > _MAX_CANDIDATE_LENGTH:
                 continue
 
             try:
                 data = json.loads(json_str)
-                return True, data, None
+                if isinstance(data, dict):
+                    return True, data, None
+                candidates.append(data)
             except json.JSONDecodeError:
-                # Try next candidate
                 continue
 
-    # Try to find JSON object/array in text (first { or [)
+    # If we found any parse from fences, return first (object already returned above)
+    if candidates:
+        return True, candidates[0], None
+
+    # Try to find JSON object first, then array (envelope is object)
     for start_char in ["{", "["]:
         idx = text.find(start_char)
         if idx >= 0:
-            # Find matching closing bracket
             depth = 0
             end_idx = None
             closing_char = "}" if start_char == "{" else "]"
@@ -161,16 +166,19 @@ def _parse_json_lenient(text: str) -> tuple[bool, dict[str, Any] | None, str | N
             if end_idx:
                 json_str = text[idx:end_idx]
 
-                # Apply max candidate length
                 if len(json_str) > _MAX_CANDIDATE_LENGTH:
                     continue
 
                 try:
                     data = json.loads(json_str)
-                    return True, data, None
+                    if isinstance(data, dict):
+                        return True, data, None
+                    candidates.append(data)
                 except json.JSONDecodeError:
-                    # Try next start character
                     continue
+
+    if candidates:
+        return True, candidates[0], None
 
     return False, None, "No valid JSON found in text"
 
@@ -347,6 +355,20 @@ def parse_and_validate(
 
     if normalizer is not None:
         data = normalizer(data)
+
+    # Envelope schema requires an object; lenient parse can return an array
+    if not isinstance(data, dict):
+        error = ParseValidationError(
+            code=ENVELOPE_SCHEMA_FAILED,
+            error_type="envelope_schema",
+            message=f"Top-level JSON must be an object (envelope), got {type(data).__name__}",
+            guidance=[
+                "Output a single JSON object with keys: summary, assumptions, "
+                "uncertainty_notes, next_steps, verification_steps, payload_type, payload.",
+                "Do not output a JSON array as the root; the envelope is an object.",
+            ],
+        )
+        return ParseResult(success=False, data=data, error=error)
 
     # Validate envelope
     success, error = _validate_envelope(data)

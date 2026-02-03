@@ -753,8 +753,8 @@ def main() -> None:
 
     if args.run_id:
         run_id = args.run_id
-    elif isinstance(exp, dict) and exp.get("name") == "v2":
-        run_id = make_run_id() + "-v2"
+    elif isinstance(exp, dict) and exp.get("name") in ("v2", "v3"):
+        run_id = make_run_id() + "-" + exp.get("name")
     else:
         run_id = make_run_id()
 
