@@ -92,12 +92,13 @@ def _build_sample_record(
     parse_success = parsed_json is not None
     schema_valid = parse_result.success
     error_code = None
+    error_message: str | None = None
     missing_fields: list[str] = []
 
     if not parse_result.success and parse_result.error:
-        error_code = getattr(parse_result.error, "code", None) or str(
-            parse_result.error
-        )
+        err = parse_result.error
+        error_code = getattr(err, "code", None) or str(err)
+        error_message = getattr(err, "message", None) or str(err)
     if parsed_json:
         ok, missing = check_required_fields(parsed_json, ENVELOPE_REQUIRED_FIELDS)
         if not ok:
@@ -123,6 +124,10 @@ def _build_sample_record(
         "tokens_generated": tokens_generated,
         "uncertainty_marker_present": uncertainty_present,
     }
+    if error_message is not None:
+        record["schema_error_message"] = (error_message[:500] if len(error_message) > 500 else error_message)
+    if parsed_json and isinstance(parsed_json, dict):
+        record["parsed_top_level_keys"] = list(parsed_json.keys())
     return record
 
 
@@ -342,27 +347,57 @@ def run_samples(
     log("  Finetuned model loaded.")
     log("")
 
-    finetuned_records = []
-    for i, row in enumerate(prompts, 1):
-        log(f"  Finetuned {i}/{n_prompts}  id={row.get('id', '')}  ...")
-        prompt_text = row["prompt"]
-        result = _run_inference_one(model, tokenizer, prompt_text, gen_spec, gen_seed)
-        raw_output = result.get("completion_text", result.get("text", ""))
-        parse_result = parse_and_validate(raw_output, strict_json=False)
-        latency_s = result.get("timing", {}).get("latency_s", 0)
-        usage = result.get("usage", {})
-        tokens_gen = usage.get("completion_tokens")
+    debug_path = samples_dir / "schema_failures_debug.jsonl"
+    # Open debug file for incremental write so partial results are saved if run is stopped early
+    debug_file = open(debug_path, "w", encoding="utf-8")
+    try:
+        finetuned_records = []
+        for i, row in enumerate(prompts, 1):
+            log(f"  Finetuned {i}/{n_prompts}  id={row.get('id', '')}  ...")
+            prompt_text = row["prompt"]
+            result = _run_inference_one(model, tokenizer, prompt_text, gen_spec, gen_seed)
+            raw_output = result.get("completion_text", result.get("text", ""))
+            parse_result = parse_and_validate(raw_output, strict_json=False)
+            latency_s = result.get("timing", {}).get("latency_s", 0)
+            usage = result.get("usage", {})
+            tokens_gen = usage.get("completion_tokens")
 
-        rec = _build_sample_record(
-            row,
-            raw_output,
-            parse_result,
-            latency_ms=latency_s * 1000,
-            tokens_generated=tokens_gen,
-        )
-        finetuned_records.append(rec)
-        latency_ms = latency_s * 1000
-        log(f"             -> {latency_ms:.0f} ms  parse_ok={rec.get('parse_success')}  schema_ok={rec.get('schema_valid')}")
+            rec = _build_sample_record(
+                row,
+                raw_output,
+                parse_result,
+                latency_ms=latency_s * 1000,
+                tokens_generated=tokens_gen,
+            )
+            finetuned_records.append(rec)
+            latency_ms = latency_s * 1000
+            log(f"             -> {latency_ms:.0f} ms  parse_ok={rec.get('parse_success')}  schema_ok={rec.get('schema_valid')}")
+            if not rec.get("schema_valid") and rec.get("parse_success"):
+                # Debug: why did schema validation fail?
+                err_code = rec.get("error_code") or "?"
+                missing = rec.get("missing_fields") or []
+                err_msg = (rec.get("schema_error_message") or "")[:120]
+                keys = rec.get("parsed_top_level_keys") or []
+                log(f"             [schema fail] error_code={err_code}  missing_fields={missing}  parsed_keys={keys}")
+                if err_msg:
+                    log(f"             [schema fail] message: {err_msg}...")
+                # Append to debug file immediately so partial run still has failures
+                entry = {
+                    "prompt_id": rec.get("prompt_id"),
+                    "error_code": rec.get("error_code"),
+                    "missing_fields": rec.get("missing_fields"),
+                    "schema_error_message": (rec.get("schema_error_message") or "")[:300],
+                    "parsed_top_level_keys": rec.get("parsed_top_level_keys"),
+                    "raw_output_len": len(rec.get("raw_text_output") or ""),
+                }
+                debug_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                debug_file.flush()
+
+        n_failures = sum(1 for r in finetuned_records if r.get("parse_success") and not r.get("schema_valid"))
+        if n_failures:
+            log(f"  Schema failures debug: {debug_path} ({n_failures} entries)")
+    finally:
+        debug_file.close()
 
     finetuned_out = samples_dir / "finetuned_outputs.jsonl"
     with open(finetuned_out, "w", encoding="utf-8") as f:
