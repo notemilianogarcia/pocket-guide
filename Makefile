@@ -1,4 +1,4 @@
-.PHONY: env lint test data drafts drafts-sample drafts-dry-run drafts-batch critiques critiques-sample critiques-dry-run critiques-batch dataset dataset-sample dataset-dry-run dataset-batch pipeline-batch split prepare-sft data-full pipeline-sample debug-sample regate-overconfident clean-data train train-run train-dry-run run-samples recompute-sample-metrics report run run_local quantize quantize-dry-run eval eval-local clean help
+.PHONY: env lint test data drafts drafts-sample drafts-dry-run drafts-batch critiques critiques-sample critiques-dry-run critiques-batch dataset dataset-sample dataset-dry-run dataset-batch pipeline-batch split split-v2 prepare-sft prepare-sft-v2 data-full pipeline-sample debug-sample regate-overconfident clean-data train train-run train-dry-run train-v2 train-v2-dry-run run-samples recompute-sample-metrics report run run_local quantize quantize-dry-run eval eval-local clean help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -121,6 +121,19 @@ dataset: ## Generate final training dataset from plans, drafts, and critiques
 		--resume
 	@echo "✓ Dataset generated! Check data/processed/dataset_v1.jsonl"
 
+qa-v1: ## Run QA pipeline on dataset_v1 → dataset_v1_clean (relaxed defaults: min_words=60, max_words=1200, near_dup=0.88, cap=2.0)
+	@$(VENV_PYTHON) -m pocketguide.data_generation.qa_pipeline_v1 \
+		--in_path data/processed/dataset_v1.jsonl \
+		--out_clean data/processed/dataset_v1_clean.jsonl \
+		--out_report data/processed/dataset_v1_qa_report.md \
+		--out_summary data/processed/dataset_v1_qa_summary.json \
+		--seed 42
+	@echo "✓ QA done. Check data/processed/dataset_v1_clean.jsonl"
+
+dataset-v2: ## Build dataset v2 from v1_clean with targeted augmentation (Lesson 7.2). Run make qa-v1 first.
+	@$(VENV_PYTHON) -m pocketguide.dataqa.build_dataset_v2 --config configs/dataset_v2_build.yaml
+	@echo "✓ Dataset v2 built. Check data/processed/dataset_v2.jsonl and dataset_v2_manifest.json"
+
 dataset-sample: ## Generate dataset for first N samples only (default N=3)
 	@echo "Generating dataset for first $(SAMPLE_N) samples..."
 	@$(VENV_PYTHON) -m pocketguide.data_generation.generate_dataset_v1 \
@@ -193,6 +206,15 @@ split: ## Split dataset into train/val/test (requires data/processed/dataset_v1.
 		--train_frac 0.8 --val_frac 0.1 --test_frac 0.1
 	@echo "✓ Splits written to data/processed/splits/v1/"
 
+split-v2: ## Split dataset_v2 into train/val/test (Lesson 7.3). Run after make dataset-v2.
+	@echo "Splitting dataset_v2 into train/val/test..."
+	@$(VENV_PYTHON) -m pocketguide.data_generation.split_dataset_v1 \
+		--in_path data/processed/dataset_v2.jsonl \
+		--out_dir data/processed/splits/v2 \
+		--seed 42 \
+		--train_frac 0.8 --val_frac 0.1 --test_frac 0.1
+	@echo "✓ Splits written to data/processed/splits/v2/"
+
 prepare-sft: ## Convert splits to SFT format (train_sft.jsonl, val_sft.jsonl, fixed suite)
 	@echo "Preparing SFT datasets and fixed eval suite..."
 	@$(VENV_PYTHON) -m pocketguide.train.prepare_sft_data \
@@ -201,6 +223,15 @@ prepare-sft: ## Convert splits to SFT format (train_sft.jsonl, val_sft.jsonl, fi
 		--seed 42 \
 		--fixed_prompts_out eval/suites/fixed20_v1.jsonl
 	@echo "✓ SFT data in data/processed/sft/v1/ — use for training (configs/train_lora.yaml)"
+
+prepare-sft-v2: ## Convert v2 splits to SFT format (Lesson 7.3). Run after make split-v2.
+	@echo "Preparing SFT v2 datasets..."
+	@$(VENV_PYTHON) -m pocketguide.train.prepare_sft_data \
+		--splits_dir data/processed/splits/v2 \
+		--out_dir data/processed/sft/v2 \
+		--seed 42 \
+		--fixed_prompts_out eval/suites/fixed20_v2.jsonl
+	@echo "✓ SFT v2 data in data/processed/sft/v2/ — use for training (configs/train_lora_v2.yaml)"
 
 data-full: data drafts critiques dataset split prepare-sft ## Run full pipeline: plan → drafts → critiques → dataset → split → SFT (API calls)
 	@echo "✓ Full data pipeline complete. Train with: make train-run (or Lightning)."
@@ -255,6 +286,15 @@ train-run: ## Run LoRA training (configs/train_lora.yaml); use --dry_run to vali
 train-dry-run: ## Validate config and datasets without loading model
 	@$(VENV_PYTHON) -m pocketguide.train.train --config configs/train_lora.yaml --dry_run
 	@echo "✓ Dry run OK."
+
+train-v2: ## Run v2 training (configs/train_lora_v2.yaml). Requires: make split-v2 && make prepare-sft-v2 first.
+	@echo "Starting v2 training (configs/train_lora_v2.yaml)..."
+	@$(VENV_PYTHON) -m pocketguide.train.train --config configs/train_lora_v2.yaml
+	@echo "✓ V2 training complete. Check runs/train/<run_id>-v2/ for outputs."
+
+train-v2-dry-run: ## Validate v2 config and datasets without loading model
+	@$(VENV_PYTHON) -m pocketguide.train.train --config configs/train_lora_v2.yaml --dry_run
+	@echo "✓ V2 dry run OK."
 
 run-samples: ## Run base + finetuned sample generation (Lesson 5.4). Requires RUN_DIR=runs/train/<run_id>
 	@test -n "$(RUN_DIR)" || (echo "Usage: make run-samples RUN_DIR=runs/train/<run_id>" && exit 1)

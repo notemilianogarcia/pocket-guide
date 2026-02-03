@@ -118,7 +118,7 @@ def downsample_records(
     records: List[Dict[str, Any]],
     bucket_caps: Dict[Tuple[str, str, str], int],
     seed: int = 42
-) -> Tuple[List[Dict[str, Any]], List[Tuple[Dict[str, Any], str]]]:
+) -> Tuple[List[Dict[str, Any]], List[Tuple[Dict[str, Any], str, Dict[str, Any]]]]:
     """
     Deterministically downsample records per bucket.
     
@@ -136,7 +136,7 @@ def downsample_records(
         
     Returns:
         Tuple of (accepted_records, rejected_records_with_reason)
-        where rejected_records_with_reason is list of (record, reason_code) tuples
+        where rejected_records_with_reason is list of (record, reason_code, metadata) tuples
     """
     # Group records by bucket
     bucket_records = defaultdict(list)
@@ -162,7 +162,8 @@ def downsample_records(
             
             accepted.extend(shuffled[:cap])
             for record in shuffled[cap:]:
-                rejected.append((record, "balanced_downsample"))
+                metadata = {"bucket_key": list(bucket_key), "cap": cap}
+                rejected.append((record, "balanced_downsample", metadata))
     
     return accepted, rejected
 
@@ -172,7 +173,7 @@ def apply_balancing(
     cap_multiplier: float = 1.5,
     cap_multiplier_hard: float = 3.0,
     seed: int = 42
-) -> Tuple[List[Dict[str, Any]], List[Tuple[Dict[str, Any], str]], Dict[str, Any]]:
+) -> Tuple[List[Dict[str, Any]], List[Tuple[Dict[str, Any], str, Dict[str, Any]]], Dict[str, Any]]:
     """
     Apply full balancing pipeline.
     

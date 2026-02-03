@@ -1,0 +1,52 @@
+# LoRA fine-tuning v2 (Milestone 7 — Lesson 7.3)
+# Same as v1 (configs/train_lora.yaml) except:
+# 1) Dataset paths point to v2 splits/SFT (from dataset_v2.jsonl).
+# 2) ONE training change: lr reduced to 1.5e-4 (v1 used 2.0e-4).
+# Prerequisites: split dataset_v2 → data/processed/splits/v2, then prepare_sft_data → data/processed/sft/v2.
+
+base_model_id: "meta-llama/Llama-2-7b-hf"
+
+experiment:
+  name: "v2"
+  one_change: "training.lr reduced to 1.5e-4 (v1 baseline 2.0e-4)"
+  one_change_key: "training.lr"
+
+data:
+  train_path: data/processed/splits/v2/train.jsonl
+  val_path: data/processed/splits/v2/val.jsonl
+  train_sft_path: data/processed/sft/v2/train_sft.jsonl
+  val_sft_path: data/processed/sft/v2/val_sft.jsonl
+  max_seq_len: 1024
+
+output:
+  runs_dir: runs/train
+
+training:
+  seed: 42
+  batch_size: 1
+  grad_accum_steps: 16
+  lr: 1.5e-4   # v2 single change (v1: 2.0e-4)
+  num_epochs: 1
+  max_grad_norm: 1.0
+  warmup_steps: 0
+  eval_every_steps: 100
+  save_every_steps: 200
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: "auto"
+
+runtime:
+  device: auto
+  precision: auto
+  gradient_checkpointing: true
+  dummy_model: false
+  num_workers: 2
+  pin_memory: true
+
+logging:
+  log_every_steps: 10
+  enable_wandb: false
+  project: pocketguide

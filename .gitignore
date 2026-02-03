@@ -54,14 +54,19 @@ data/*
 !data/processed/
 data/processed/*
 !data/processed/dataset_v1.jsonl
+!data/processed/dataset_v2.jsonl
 !data/processed/splits/
 data/processed/splits/*
 !data/processed/splits/v1/
 !data/processed/splits/v1/*
+!data/processed/splits/v2/
+!data/processed/splits/v2/*
 !data/processed/sft/
 data/processed/sft/*
 !data/processed/sft/v1/
 !data/processed/sft/v1/*
+!data/processed/sft/v2/
+!data/processed/sft/v2/*
 # Benchmarks from split (optional, for eval)
 !data/benchmarks/
 data/benchmarks/*

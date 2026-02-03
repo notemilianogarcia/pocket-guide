@@ -186,8 +186,9 @@ class TestDownsampleRecords:
         assert len(rejected) == 5
         
         # Check that rejected records have correct reason code
-        for record, reason in rejected:
+        for record, reason, metadata in rejected:
             assert reason == "balanced_downsample"
+            assert isinstance(metadata, dict)
     
     def test_deterministic_downsampling(self):
         """Should produce same results with same seed."""

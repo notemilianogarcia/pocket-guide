@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from importlib import resources
-from typing import Any
+from typing import Any, Callable
 
 import jsonschema
 
@@ -210,6 +210,7 @@ def _validate_envelope(
     except jsonschema.ValidationError as e:
         guidance = []
         failed_at = e.json_path if hasattr(e, "json_path") else None
+        msg = getattr(e, "message", str(e))
 
         # Provide helpful guidance based on error
         if "required" in str(e).lower():
@@ -227,7 +228,7 @@ def _validate_envelope(
         error = ParseValidationError(
             code=ENVELOPE_SCHEMA_FAILED,
             error_type="envelope_schema",
-            message=e.message,
+            message=msg,
             failed_at=failed_at,
             guidance=guidance,
             raw_exception=e,
@@ -279,10 +280,11 @@ def _validate_payload(
                 "for fields like priority, transport.mode, or node.type."
             )
 
+        msg = getattr(e, "message", str(e))
         error = ParseValidationError(
             code=PAYLOAD_SCHEMA_FAILED,
             error_type="payload_schema",
-            message=e.message,
+            message=msg,
             failed_at=failed_at,
             guidance=guidance,
             raw_exception=e,
@@ -293,6 +295,8 @@ def _validate_payload(
 def parse_and_validate(
     text: str,
     strict_json: bool = True,
+    validate_payload: bool = True,
+    normalizer: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ParseResult:
     """
     Parse response text and validate against envelope + payload schemas.
@@ -301,6 +305,9 @@ def parse_and_validate(
         text: Response text to parse
         strict_json: If True, use strict parsing only.
                      If False, fall back to lenient parsing on failure.
+        validate_payload: If False, skip payload schema validation (envelope only).
+        normalizer: Optional function to normalize parsed data before validation
+                    (e.g. coerce string fields to arrays for teacher output).
 
     Returns:
         ParseResult with success status, parsed data, or error details
@@ -338,10 +345,16 @@ def parse_and_validate(
             )
             return ParseResult(success=False, error=error)
 
+    if normalizer is not None:
+        data = normalizer(data)
+
     # Validate envelope
     success, error = _validate_envelope(data)
     if not success:
         return ParseResult(success=False, data=data, error=error)
+
+    if not validate_payload:
+        return ParseResult(success=True, data=data)
 
     # Extract payload_type and payload
     payload_type = data.get("payload_type")

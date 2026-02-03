@@ -1,0 +1,25 @@
+# Dataset v2 build config (Lesson 7.2 — targeted augmentation).
+# For best results we use dataset_v1_clean.jsonl (run QA pipeline after dataset v1).
+# Failure mode names: invalid_json_truncation, missing_verification_steps.
+# Set synthetic_cache_path to save teacher API responses; re-runs reuse cache and re-parse only.
+
+base_dataset_path: data/processed/dataset_v1_clean.jsonl
+output_dir: data/processed
+synthetic_cache_path: data/processed/dataset_v2_synthetic_cache.jsonl
+
+target_failure_modes:
+  - missing_verification_steps
+  - invalid_json_truncation
+
+interventions:
+  add_hard_prompts: true
+  hard_prompt_count: 50
+  add_targeted_synthetic: true
+  synthetic_count: 50
+  oversample_v1_matches: true
+  oversample_factor: 1.5
+  stricter_rejection: true
+
+seeds:
+  shuffle_seed: 42
+  sampling_seed: 42

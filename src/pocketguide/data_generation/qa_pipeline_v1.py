@@ -893,20 +893,20 @@ def main():
     parser.add_argument(
         "--near_dup_threshold",
         type=float,
-        default=0.85,
-        help="Jaccard similarity threshold for near-duplicates (default 0.85)"
+        default=0.88,
+        help="Jaccard similarity threshold for near-duplicates (default 0.88; higher = fewer removed)"
     )
     parser.add_argument(
         "--min_words",
         type=int,
-        default=MIN_WORDS_DEFAULT,
-        help=f"Minimum words for length filter (default {MIN_WORDS_DEFAULT})"
+        default=60,
+        help=f"Minimum words for length filter (default 60; use {MIN_WORDS_DEFAULT} for stricter)"
     )
     parser.add_argument(
         "--max_words",
         type=int,
-        default=MAX_WORDS_DEFAULT,
-        help=f"Maximum words for length filter (default {MAX_WORDS_DEFAULT})"
+        default=1200,
+        help=f"Maximum words for length filter (default 1200; use {MAX_WORDS_DEFAULT} for stricter)"
     )
     parser.add_argument(
         "--vague_phrase_threshold",
@@ -923,8 +923,8 @@ def main():
     parser.add_argument(
         "--cap_multiplier",
         type=float,
-        default=1.5,
-        help="Cap multiplier for normal difficulty buckets (default 1.5)"
+        default=2.0,
+        help="Cap multiplier for normal difficulty buckets (default 2.0; higher keeps more)"
     )
     parser.add_argument(
         "--cap_multiplier_hard",

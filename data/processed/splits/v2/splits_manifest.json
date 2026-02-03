@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "timestamp": "2026-02-02T19:39:34.486538",
+    "input_path": "data/processed/dataset_v2.jsonl",
+    "seed": 42
+  },
+  "parameters": {
+    "train_frac": 0.8,
+    "val_frac": 0.1,
+    "test_frac": 0.1,
+    "sim_threshold": 0.75,
+    "shingle_size": 3,
+    "bucket_modulo": 1000
+  },
+  "outputs": {
+    "train_path": "data/processed/splits/v2/train.jsonl",
+    "val_path": "data/processed/splits/v2/val.jsonl",
+    "test_path": "data/processed/splits/v2/test.jsonl",
+    "benchmark_prompts_path": "data/benchmarks/v1/prompts_test.jsonl"
+  },
+  "counts": {
+    "train": 155,
+    "val": 89,
+    "test": 70,
+    "total": 314,
+    "benchmark_prompts": 70
+  }
+}

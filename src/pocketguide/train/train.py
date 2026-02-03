@@ -50,6 +50,61 @@ REQUIRED_CONFIG_KEYS = {
 REQUIRED_DATA_KEYS = {"train_path", "val_path"}
 REQUIRED_OUTPUT_KEYS = {"runs_dir"}
 
+# Keys that are allowed to differ between v1 and v2 (data paths + the single experiment change)
+ALLOWED_DIFF_KEYS = frozenset({
+    "data.train_path", "data.val_path", "data.train_sft_path", "data.val_sft_path",
+})
+
+
+def _get_nested(cfg: dict[str, Any], dot_key: str) -> Any:
+    """Get value by dot path (e.g. 'training.lr'). Returns None if any segment missing."""
+    parts = dot_key.split(".")
+    cur: Any = cfg
+    for p in parts:
+        if not isinstance(cur, dict) or p not in cur:
+            return None
+        cur = cur[p]
+    return cur
+
+
+def _flatten_dict(d: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+    """Flatten one level only: top-level keys become 'key' or 'key.subkey'."""
+    out: dict[str, Any] = {}
+    for k, v in d.items():
+        key = f"{prefix}{k}" if prefix else k
+        if isinstance(v, dict) and not any(
+            isinstance(v.get(x), (dict, list)) for x in v
+        ):
+            for sk, sv in v.items():
+                out[f"{key}.{sk}"] = sv
+        else:
+            out[key] = v
+    return out
+
+
+def validate_experiment_one_change(
+    cfg_v2: dict[str, Any],
+    cfg_v1: dict[str, Any],
+    one_change_key: str,
+) -> None:
+    """
+    Assert that v2 config differs from v1 only in data paths and the single one_change_key.
+    Raises ValueError if any other difference is found.
+    """
+    flat1 = _flatten_dict(cfg_v1)
+    flat2 = _flatten_dict(cfg_v2)
+    allowed = set(ALLOWED_DIFF_KEYS) | {one_change_key}
+    for key in set(flat1) | set(flat2):
+        if key in allowed or key.startswith("experiment"):
+            continue
+        v1 = flat1.get(key)
+        v2 = flat2.get(key)
+        if v1 != v2:
+            raise ValueError(
+                f"Experiment one-change guardrail: v2 differs from v1 on '{key}' "
+                f"(only data paths and '{one_change_key}' are allowed to differ)."
+            )
+
 
 def load_config(path: Path) -> dict[str, Any]:
     """Load and validate top-level config structure."""
@@ -155,6 +210,7 @@ def build_meta(
     project_root: Path,
     device: str,
     precision: str,
+    v1_run_ref: str | None = None,
 ) -> dict[str, Any]:
     """Build meta.json contents (environment, versions, dataset hashes)."""
     data = cfg["data"]
@@ -194,6 +250,15 @@ def build_meta(
         },
         "run_dir": str(run_dir),
     }
+    exp = cfg.get("experiment")
+    if isinstance(exp, dict):
+        meta["experiment"] = {
+            "name": exp.get("name"),
+            "one_change": exp.get("one_change"),
+            "one_change_key": exp.get("one_change_key"),
+        }
+        if v1_run_ref:
+            meta["experiment"]["v1_run_ref"] = v1_run_ref
     return meta
 
 
@@ -569,7 +634,7 @@ def main() -> None:
         "--config",
         type=str,
         required=True,
-        help="Path to train config YAML (e.g. configs/train_lora.yaml)",
+        help="Path to train config YAML (e.g. configs/train_lora.yaml or configs/train_lora_v2.yaml)",
     )
     parser.add_argument(
         "--dry_run",
@@ -588,6 +653,12 @@ def main() -> None:
         default=None,
         help="Use this run ID instead of generating one (deterministic runs).",
     )
+    parser.add_argument(
+        "--v1_run_dir",
+        type=str,
+        default=None,
+        help="Path to v1 run directory (runs/train/<v1_run_id>) for one-change guardrail; requires config with experiment block.",
+    )
     args = parser.parse_args()
 
     project_root = Path.cwd()
@@ -601,6 +672,36 @@ def main() -> None:
         print(f"Config error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Experiment block: require name and one_change; optional one-change guardrail vs v1
+    exp = cfg.get("experiment")
+    v1_run_ref: str | None = None
+    if isinstance(exp, dict):
+        if exp.get("name") is None or exp.get("name") == "":
+            print("Config error: experiment block requires experiment.name", file=sys.stderr)
+            sys.exit(1)
+        if exp.get("one_change") is None or exp.get("one_change") == "":
+            print("Config error: experiment block requires experiment.one_change", file=sys.stderr)
+            sys.exit(1)
+        one_change_key = exp.get("one_change_key")
+        if args.v1_run_dir:
+            v1_run_dir = Path(args.v1_run_dir)
+            if not v1_run_dir.is_absolute():
+                v1_run_dir = project_root / v1_run_dir
+            v1_config_path = v1_run_dir / "config.yaml"
+            if not v1_config_path.exists():
+                print(f"Config error: v1 run config not found: {v1_config_path}", file=sys.stderr)
+                sys.exit(1)
+            if not one_change_key:
+                print("Config error: experiment.one_change_key required when --v1_run_dir is set", file=sys.stderr)
+                sys.exit(1)
+            try:
+                cfg_v1 = load_config(v1_config_path)
+                validate_experiment_one_change(cfg, cfg_v1, one_change_key)
+            except ValueError as e:
+                print(f"Experiment guardrail: {e}", file=sys.stderr)
+                sys.exit(1)
+            v1_run_ref = str(v1_run_dir)
+
     try:
         train_records, val_records = validate_datasets(cfg, project_root)
     except (FileNotFoundError, ValueError) as e:
@@ -613,7 +714,13 @@ def main() -> None:
         device,
     )
 
-    run_id = args.run_id if args.run_id else make_run_id()
+    if args.run_id:
+        run_id = args.run_id
+    elif isinstance(exp, dict) and exp.get("name") == "v2":
+        run_id = make_run_id() + "-v2"
+    else:
+        run_id = make_run_id()
+
     try:
         run_dir = create_run_dir(cfg, run_id, project_root)
     except FileExistsError as e:
@@ -624,7 +731,7 @@ def main() -> None:
     config_snapshot_path = run_dir / "config.yaml"
     write_yaml(config_snapshot_path, cfg)
 
-    meta = build_meta(cfg, run_id, run_dir, project_root, device, precision)
+    meta = build_meta(cfg, run_id, run_dir, project_root, device, precision, v1_run_ref=v1_run_ref)
     meta_path = run_dir / "meta.json"
     write_json(meta_path, meta)
 

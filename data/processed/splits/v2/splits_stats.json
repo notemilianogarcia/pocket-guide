@@ -1,0 +1,95 @@
+{
+  "summary": {
+    "total_records": 314,
+    "train_count": 155,
+    "val_count": 89,
+    "test_count": 70,
+    "benchmark_prompts": 70
+  },
+  "groups": {
+    "num_groups": 38,
+    "min_size": 1,
+    "median_size": 1,
+    "max_size": 87,
+    "singleton_groups": 30
+  },
+  "leakage_validation": {
+    "groups_spanning_splits": 0,
+    "fingerprints_spanning_splits": 0,
+    "leakage_free": true
+  },
+  "distributions": {
+    "train": {
+      "category": {
+        "budgeting": 24,
+        "safety": 21,
+        "itinerary_planning": 25,
+        "local_customs": 10,
+        "entry_requirements": 37,
+        "transport": 26,
+        "accommodation": 12
+      },
+      "difficulty": {
+        "easy": 63,
+        "medium": 66,
+        "hard": 26
+      },
+      "payload_type": {
+        "procedure": 59,
+        "itinerary": 11,
+        "checklist": 79,
+        "decision_tree": 6
+      }
+    },
+    "val": {
+      "category": {
+        "accommodation": 16,
+        "local_customs": 7,
+        "safety": 16,
+        "transport": 12,
+        "entry_requirements": 14,
+        "itinerary_planning": 16,
+        "budgeting": 8
+      },
+      "difficulty": {
+        "hard": 21,
+        "medium": 37,
+        "easy": 31
+      },
+      "payload_type": {
+        "itinerary": 87,
+        "decision_tree": 2
+      }
+    },
+    "test": {
+      "category": {
+        "accommodation": 8,
+        "transport": 12,
+        "budgeting": 12,
+        "entry_requirements": 15,
+        "itinerary_planning": 14,
+        "safety": 5,
+        "local_customs": 4
+      },
+      "difficulty": {
+        "easy": 29,
+        "medium": 28,
+        "hard": 13
+      },
+      "payload_type": {
+        "decision_tree": 65,
+        "checklist": 3,
+        "itinerary": 2
+      }
+    }
+  },
+  "parameters": {
+    "seed": 42,
+    "train_frac": 0.8,
+    "val_frac": 0.1,
+    "test_frac": 0.1,
+    "sim_threshold": 0.75,
+    "shingle_size": 3,
+    "bucket_modulo": 1000
+  }
+}
